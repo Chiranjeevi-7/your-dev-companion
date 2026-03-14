@@ -1,0 +1,2469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FitAI Pro — Intelligent Fitness Companion</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<!-- MediaPipe Pose -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1c1c2a;
+    --surface3: #252535;
+    --accent: #00ff88;
+    --accent2: #ff3b6b;
+    --accent3: #3b82f6;
+    --warn: #ffaa00;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --border: #2a2a3d;
+    --danger: #ff2244;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ============ AUTH SCREEN ============ */
+  #auth-screen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    background-image: radial-gradient(ellipse at 20% 50%, rgba(0,255,136,0.08) 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 20%, rgba(59,130,246,0.06) 0%, transparent 50%);
+  }
+
+  .auth-card {
+    width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .auth-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3), var(--accent2));
+  }
+
+  .auth-logo {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 2.8rem;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+
+  .auth-tagline { color: var(--muted); font-size: 0.85rem; margin-bottom: 36px; }
+
+  .auth-tabs { display: flex; gap: 4px; background: var(--surface2); border-radius: 10px; padding: 4px; margin-bottom: 28px; }
+  .auth-tab {
+    flex: 1; padding: 8px; text-align: center; border-radius: 7px;
+    cursor: pointer; font-size: 0.9rem; color: var(--muted); transition: all 0.2s;
+    border: none; background: none; font-family: 'DM Sans', sans-serif;
+  }
+  .auth-tab.active { background: var(--surface3); color: var(--text); }
+
+  .input-group { margin-bottom: 16px; }
+  .input-group label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .input-group input, .input-group select {
+    width: 100%; padding: 12px 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.95rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  .input-group input:focus, .input-group select:focus { border-color: var(--accent); }
+  .input-group select option { background: var(--surface2); }
+
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .btn-primary {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, var(--accent), #00cc6a);
+    color: #000; font-weight: 700; font-size: 0.95rem;
+    border: none; border-radius: 10px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; letter-spacing: 0.5px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    margin-top: 8px;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,255,136,0.3); }
+
+  /* ============ MAIN APP ============ */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px; position: sticky; top: 0; z-index: 100;
+  }
+  .nav-logo { font-family: 'Bebas Neue', cursive; font-size: 1.8rem; letter-spacing: 2px; color: var(--accent); }
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab {
+    padding: 7px 16px; border-radius: 8px; cursor: pointer;
+    font-size: 0.85rem; color: var(--muted); transition: all 0.2s;
+    border: none; background: none; font-family: 'DM Sans', sans-serif;
+  }
+  .nav-tab.active { background: var(--surface2); color: var(--accent); }
+  .nav-tab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+
+  .nav-user { display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem; color: #000;
+  }
+  .user-name { font-size: 0.85rem; color: var(--muted); }
+
+  /* PAGES */
+  .page { display: none; padding: 24px; max-width: 1400px; margin: 0 auto; width: 100%; }
+  .page.active { display: block; }
+
+  /* ============ WORKOUT PAGE ============ */
+  .workout-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; }
+
+  .pose-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .pose-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .pose-header h2 { font-family: 'Bebas Neue', cursive; font-size: 1.4rem; letter-spacing: 1px; }
+
+  .exercise-select-row {
+    display: flex; gap: 10px; align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    flex-wrap: wrap;
+  }
+  .exercise-select-row select {
+    flex: 1; padding: 8px 12px;
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif;
+    outline: none; min-width: 160px;
+  }
+
+  .btn-sm {
+    padding: 8px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+    border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .btn-green { background: var(--accent); color: #000; }
+  .btn-red { background: var(--accent2); color: #fff; }
+  .btn-blue { background: var(--accent3); color: #fff; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-sm:hover { opacity: 0.85; transform: translateY(-1px); }
+
+  /* Canvas Area */
+  .canvas-area {
+    position: relative;
+    background: #050508;
+    aspect-ratio: 4/3;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  canvas#poseCanvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  .pose-overlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+
+  /* Side indicator */
+  .side-indicator {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(255,170,0,0.9);
+    color: #000; font-weight: 700; font-size: 0.8rem;
+    padding: 6px 12px; border-radius: 20px;
+    display: none;
+    animation: pulse 1.2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  /* Safety alert */
+  .safety-alert {
+    position: absolute; bottom: 12px; left: 12px; right: 12px;
+    background: rgba(255,34,68,0.95);
+    color: #fff; font-weight: 600; font-size: 0.85rem;
+    padding: 10px 16px; border-radius: 10px;
+    display: none;
+    animation: alertPulse 0.5s ease;
+  }
+  @keyframes alertPulse { from { transform: scale(0.95); } to { transform: scale(1); } }
+
+  /* Camera off placeholder */
+  .camera-placeholder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; color: var(--muted); font-size: 0.9rem;
+  }
+  .camera-placeholder .icon { font-size: 3rem; }
+
+  /* Right panel */
+  .right-panel { display: flex; flex-direction: column; gap: 14px; }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .stat-card h3 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+  .rep-display {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 5rem; line-height: 1;
+    color: var(--accent);
+    transition: color 0.3s;
+  }
+  .rep-display.warn { color: var(--warn); }
+  .rep-display.danger { color: var(--danger); animation: shake 0.3s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  .rep-controls { display: flex; gap: 8px; margin-top: 12px; }
+  .rep-controls button { flex: 1; }
+
+  .timer-display {
+    font-family: 'Space Mono', monospace;
+    font-size: 3rem; color: var(--accent3);
+    letter-spacing: 2px; line-height: 1;
+  }
+
+  .timer-controls { display: flex; gap: 8px; margin-top: 10px; }
+
+  .progress-bar-wrap { margin-top: 8px; }
+  .progress-bar-bg { background: var(--surface3); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent3)); transition: width 0.3s; }
+
+  .set-tracker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .set-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface3); border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+  }
+  .set-dot.done { background: var(--accent); border-color: var(--accent); color: #000; }
+
+  .recommendation-card {
+    background: linear-gradient(135deg, rgba(0,255,136,0.08), rgba(59,130,246,0.08));
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .recommendation-card strong { color: var(--accent); }
+
+  .form-feedback {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--muted);
+    min-height: 60px;
+  }
+  .form-feedback .good { color: var(--accent); }
+  .form-feedback .warn { color: var(--warn); }
+  .form-feedback .bad { color: var(--danger); }
+
+  /* ============ CHAT PAGE ============ */
+  .chat-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; height: calc(100vh - 108px); }
+
+  .chat-sidebar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  .sidebar-section { margin-bottom: 24px; }
+  .sidebar-section h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
+
+  .macro-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .macro-item:last-child { border-bottom: none; }
+  .macro-label { color: var(--muted); }
+  .macro-val { font-weight: 600; font-family: 'Space Mono', monospace; font-size: 0.8rem; }
+  .macro-val.over { color: var(--danger); }
+  .macro-val.ok { color: var(--accent); }
+
+  .macro-input-row { display: flex; gap: 6px; margin-top: 10px; }
+  .macro-input-row input {
+    flex: 1; padding: 6px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; color: var(--text); font-size: 0.8rem;
+    outline: none; font-family: 'DM Sans', sans-serif;
+  }
+
+  .quick-chip {
+    display: inline-block; padding: 5px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; font-size: 0.78rem; color: var(--muted);
+    cursor: pointer; margin: 3px; transition: all 0.15s;
+  }
+  .quick-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  .chat-main {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .bot-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+  .bot-info h3 { font-size: 0.95rem; }
+  .bot-status { font-size: 0.75rem; color: var(--accent); }
+
+  .chat-messages {
+    flex: 1; overflow-y: auto;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .msg {
+    max-width: 72%;
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    animation: msgIn 0.2s ease;
+  }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } }
+
+  .msg.bot {
+    background: var(--surface2);
+    border-bottom-left-radius: 4px;
+    align-self: flex-start;
+  }
+  .msg.user {
+    background: linear-gradient(135deg, rgba(0,255,136,0.15), rgba(59,130,246,0.15));
+    border: 1px solid rgba(0,255,136,0.2);
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+  }
+  .msg-time { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+
+  .typing-indicator {
+    display: flex; gap: 4px; padding: 12px 16px;
+    background: var(--surface2); border-radius: 14px; border-bottom-left-radius: 4px;
+    width: fit-content; align-self: flex-start;
+  }
+  .typing-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+    animation: typingBounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+  }
+
+  .chat-input-area {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .chat-input-area textarea {
+    flex: 1; padding: 10px 14px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; outline: none; resize: none;
+    min-height: 40px; max-height: 120px;
+    transition: border-color 0.2s;
+  }
+  .chat-input-area textarea:focus { border-color: var(--accent); }
+  .send-btn {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: var(--accent); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; transition: all 0.15s;
+  }
+  .send-btn:hover { background: #00cc6a; transform: scale(1.05); }
+
+  /* ============ DASHBOARD ============ */
+  .dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative; overflow: hidden;
+  }
+  .kpi-card::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+    border-radius: 0 0 14px 14px;
+  }
+  .kpi-card.green::after { background: var(--accent); }
+  .kpi-card.blue::after { background: var(--accent3); }
+  .kpi-card.red::after { background: var(--accent2); }
+  .kpi-card.yellow::after { background: var(--warn); }
+
+  .kpi-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .kpi-val {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 2.4rem; line-height: 1.1; margin: 4px 0;
+  }
+  .kpi-change { font-size: 0.78rem; }
+  .kpi-change.up { color: var(--accent); }
+  .kpi-change.down { color: var(--accent2); }
+
+  .chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .chart-card h3 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+
+  .workout-log {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .workout-log h3 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+
+  .log-entry {
+    display: grid; grid-template-columns: 1fr auto auto auto;
+    gap: 12px; align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-exercise { font-weight: 600; }
+  .log-detail { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.78rem; }
+  .log-badge {
+    padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+  }
+  .log-badge.done { background: rgba(0,255,136,0.15); color: var(--accent); }
+  .log-badge.partial { background: rgba(255,170,0,0.15); color: var(--warn); }
+
+  .progress-chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+  /* ============ PROFILE ============ */
+  .profile-grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+
+  .profile-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-align: center;
+  }
+  .profile-avatar {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', cursive; font-size: 2.4rem; color: #000;
+    margin: 0 auto 16px;
+  }
+  .profile-name { font-family: 'Bebas Neue', cursive; font-size: 1.6rem; letter-spacing: 1px; }
+  .profile-level { color: var(--accent); font-size: 0.85rem; margin: 4px 0 20px; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+  .stat-mini {
+    background: var(--surface2);
+    border-radius: 10px; padding: 12px;
+    text-align: center;
+  }
+  .stat-mini-val { font-family: 'Space Mono', monospace; font-size: 1.1rem; color: var(--accent); }
+  .stat-mini-label { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ============ INJURY SAFETY ============ */
+  .safety-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .safety-icon { font-size: 1.2rem; }
+  .safety-label { font-size: 0.8rem; color: var(--muted); }
+  .safety-progress { flex: 1; }
+  .safety-level {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem; color: var(--warn);
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ============ NOTIFICATION ============ */
+  .notification {
+    position: fixed; top: 70px; right: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 0.85rem;
+    z-index: 500;
+    min-width: 260px;
+    animation: slideIn 0.3s ease;
+    display: none;
+  }
+  .notification.show { display: block; }
+  .notification.success { border-left: 3px solid var(--accent); }
+  .notification.warning { border-left: 3px solid var(--warn); }
+  .notification.error { border-left: 3px solid var(--danger); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 900px) {
+    .workout-grid { grid-template-columns: 1fr; }
+    .chat-layout { grid-template-columns: 1fr; }
+    .chat-sidebar { display: none; }
+    .dashboard-grid { grid-template-columns: 1fr 1fr; }
+    .chart-row { grid-template-columns: 1fr; }
+    .profile-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NOTIFICATION -->
+<div class="notification" id="notification"></div>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">FitAI Pro</div>
+    <div class="auth-tagline">Your intelligent fitness companion powered by AI</div>
+    
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuth('login')">Login</button>
+      <button class="auth-tab" onclick="switchAuth('register')">Sign Up</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="login-form">
+      <div class="input-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com" value="demo@fitai.com">
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••" value="password123">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">LOGIN →</button>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="register-form" style="display:none">
+      <div class="input-row">
+        <div class="input-group">
+          <label>First Name</label>
+          <input type="text" id="reg-name" placeholder="Alex">
+        </div>
+        <div class="input-group">
+          <label>Age</label>
+          <input type="number" id="reg-age" placeholder="25" min="13" max="100">
+        </div>
+      </div>
+      <div class="input-row">
+        <div class="input-group">
+          <label>Weight (kg)</label>
+          <input type="number" id="reg-weight" placeholder="70">
+        </div>
+        <div class="input-group">
+          <label>Height (cm)</label>
+          <input type="number" id="reg-height" placeholder="175">
+        </div>
+      </div>
+      <div class="input-group">
+        <label>Fitness Level</label>
+        <select id="reg-level">
+          <option value="beginner">Beginner (0-6 months)</option>
+          <option value="intermediate">Intermediate (6-24 months)</option>
+          <option value="advanced">Advanced (2+ years)</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Goal</label>
+        <select id="reg-goal">
+          <option>Build Muscle</option>
+          <option>Lose Weight</option>
+          <option>Improve Strength</option>
+          <option>General Fitness</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Email</label>
+        <input type="email" id="reg-email" placeholder="you@example.com">
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input type="password" id="reg-pass" placeholder="••••••••">
+      </div>
+      <button class="btn-primary" onclick="doRegister()">CREATE ACCOUNT →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <nav>
+    <div class="nav-logo">FitAI</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showPage('workout')">🏋️ Workout</button>
+      <button class="nav-tab" onclick="showPage('chat')">💬 AI Coach</button>
+      <button class="nav-tab" onclick="showPage('dashboard')">📊 Dashboard</button>
+      <button class="nav-tab" onclick="showPage('profile')">👤 Profile</button>
+    </div>
+    <div class="nav-user">
+      <div class="avatar" id="nav-avatar">A</div>
+      <span class="user-name" id="nav-name">Loading...</span>
+      <button class="btn-sm btn-outline" onclick="doLogout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- ====== WORKOUT PAGE ====== -->
+  <div class="page active" id="page-workout">
+    <div class="workout-grid">
+      <!-- LEFT: Pose Detection -->
+      <div class="pose-panel">
+        <div class="pose-header">
+          <h2>Pose Detection</h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn-sm btn-blue" onclick="toggleCamera()">📷 Camera</button>
+            <button class="btn-sm btn-outline" id="demo-btn" onclick="toggleDemo()">▶ Demo Mode</button>
+          </div>
+        </div>
+
+        <div class="exercise-select-row">
+          <select id="exercise-select" onchange="changeExercise()">
+            <option value="squat">Squat</option>
+            <option value="pushup">Push-up</option>
+            <option value="deadlift">Deadlift (Bilateral)</option>
+            <option value="lunge">Lunge (Side Change)</option>
+            <option value="plank">Plank (Timed)</option>
+            <option value="bicep_curl">Bicep Curl (Side Change)</option>
+            <option value="shoulder_press">Shoulder Press</option>
+            <option value="lat_pulldown">Lat Pulldown</option>
+          </select>
+          <button class="btn-sm btn-green" onclick="logWorkoutSet()">✓ Log Set</button>
+          <button class="btn-sm btn-outline" onclick="endWorkout()">End Workout</button>
+        </div>
+
+        <div class="canvas-area" id="canvas-area">
+          <!-- Real camera video feed -->
+          <video id="poseVideo" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:none;" playsinline autoplay muted></video>
+          <!-- Canvas skeleton overlay -->
+          <canvas id="poseCanvas" width="640" height="480" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+          
+          <!-- Overlays -->
+          <div class="side-indicator" id="side-indicator">SWITCH SIDE</div>
+          <div class="safety-alert" id="safety-alert">DANGER: Reduce weight! Risk of injury detected.</div>
+          
+          <div class="camera-placeholder" id="camera-placeholder" style="position:absolute;inset:0;display:flex">
+            <div class="icon">🎥</div>
+            <div>Click <strong>"Camera"</strong> to start live pose detection</div>
+            <div style="font-size:0.8rem;margin-top:4px">or use <strong>Demo Mode</strong> to simulate</div>
+          </div>
+
+          <div id="camera-loading" style="display:none;position:absolute;inset:0;background:rgba(10,10,15,0.88);align-items:center;justify-content:center;flex-direction:column;gap:14px;">
+            <div style="width:38px;height:38px;border:3px solid #00ff88;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            <div style="color:#6b6b80;font-size:0.9rem;">Initializing pose model...</div>
+          </div>
+        </div>
+
+        <!-- Form feedback below canvas -->
+        <div style="padding:14px 20px;border-top:1px solid var(--border)">
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">AI Form Feedback</div>
+          <div class="form-feedback" id="form-feedback">
+            Start a set to receive real-time posture corrections...
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Controls -->
+      <div class="right-panel">
+
+        <!-- Rep Counter -->
+        <div class="stat-card">
+          <h3>Rep Counter</h3>
+          <div class="rep-display" id="rep-display">0</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-top:4px">
+            of <span id="target-reps">12</span> target reps
+            <span id="set-info" style="margin-left:8px;color:var(--accent)">Set 1/3</span>
+          </div>
+          <div class="progress-bar-wrap" style="margin-top:10px">
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="rep-progress" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="rep-controls">
+            <button class="btn-sm btn-green" onclick="addRep()">+ Rep</button>
+            <button class="btn-sm btn-outline" onclick="removeRep()">- Rep</button>
+            <button class="btn-sm btn-red" onclick="resetReps()">Reset</button>
+          </div>
+          <div class="set-tracker" id="set-tracker"></div>
+        </div>
+
+        <!-- Timer (for timed exercises) -->
+        <div class="stat-card" id="timer-card">
+          <h3>Timer <span id="timer-label" style="color:var(--accent3);font-style:normal">(Plank)</span></h3>
+          <div class="timer-display" id="timer-display">00:00</div>
+          <div class="timer-controls">
+            <button class="btn-sm btn-green" onclick="startTimer()">▶ Start</button>
+            <button class="btn-sm btn-outline" onclick="pauseTimer()">⏸ Pause</button>
+            <button class="btn-sm btn-red" onclick="resetTimer()">↺ Reset</button>
+          </div>
+        </div>
+
+        <!-- Safety / Critical Limit -->
+        <div class="stat-card" style="border-color:rgba(255,34,68,0.3)">
+          <h3>⚠️ Safety Monitor</h3>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">
+            Fatigue & injury risk based on your profile
+          </div>
+          <div style="margin-bottom:6px;display:flex;justify-content:space-between;font-size:0.82rem">
+            <span>Fatigue Level</span>
+            <span id="fatigue-level-text" style="color:var(--accent)">Low</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="fatigue-bar" class="progress-bar-fill" style="width:10%;background:linear-gradient(90deg,#00ff88,#ff2244)"></div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:8px" id="safety-tip">
+            ✓ Your form is good. Keep going!
+          </div>
+        </div>
+
+        <!-- AI Recommendation -->
+        <div class="recommendation-card" id="recommendation-card">
+          <strong>🤖 AI Recommendation</strong><br>
+          Loading your personalized plan...
+        </div>
+
+        <!-- Weight Logger -->
+        <div class="stat-card">
+          <h3>Log Weight Used</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="weight-used" placeholder="kg" style="width:80px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;font-family:'DM Sans',sans-serif">
+            <span style="color:var(--muted);font-size:0.85rem">kg × <span id="logged-reps">0</span> reps</span>
+            <button class="btn-sm btn-green" onclick="logSet()" style="margin-left:auto">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== CHAT PAGE ====== -->
+  <div class="page" id="page-chat">
+    <div class="chat-layout">
+      <!-- Sidebar: Macros -->
+      <div class="chat-sidebar">
+        <div class="sidebar-section">
+          <h3>Today's Macros</h3>
+          <div class="macro-item">
+            <span class="macro-label">Calories</span>
+            <span class="macro-val ok" id="mac-cal">0 / <span id="mac-cal-target">2200</span></span>
+          </div>
+          <div class="macro-item">
+            <span class="macro-label">Protein</span>
+            <span class="macro-val ok" id="mac-prot">0g / <span id="mac-prot-target">160g</span></span>
+          </div>
+          <div class="macro-item">
+            <span class="macro-label">Carbs</span>
+            <span class="macro-val ok" id="mac-carbs">0g / <span id="mac-carbs-target">250g</span></span>
+          </div>
+          <div class="macro-item">
+            <span class="macro-label">Fats</span>
+            <span class="macro-val ok" id="mac-fats">0g / <span id="mac-fats-target">70g</span></span>
+          </div>
+          <div class="macro-input-row" style="margin-top:14px">
+            <input type="text" id="food-input" placeholder="Log food (e.g. 2 eggs)" onkeypress="if(event.key==='Enter')logFood()">
+            <button class="btn-sm btn-green" onclick="logFood()">+</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h3>Quick Questions</h3>
+          <span class="quick-chip" onclick="quickAsk('How much protein do I need?')">Protein needs?</span>
+          <span class="quick-chip" onclick="quickAsk('Best exercise for fat loss?')">Fat loss tips</span>
+          <span class="quick-chip" onclick="quickAsk('How to improve my squat form?')">Squat form</span>
+          <span class="quick-chip" onclick="quickAsk('What should I eat pre-workout?')">Pre-workout meal</span>
+          <span class="quick-chip" onclick="quickAsk('How many rest days do I need?')">Rest days</span>
+          <span class="quick-chip" onclick="quickAsk('How do I prevent muscle soreness?')">DOMS relief</span>
+          <span class="quick-chip" onclick="quickAsk('Am I on track with my macros today?')">Macro check</span>
+        </div>
+
+        <div class="sidebar-section">
+          <h3>Workout Summary</h3>
+          <div id="today-summary" style="font-size:0.82rem;color:var(--muted);line-height:1.8">
+            No exercises logged today.
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat main -->
+      <div class="chat-main">
+        <div class="chat-header">
+          <div class="bot-avatar">🤖</div>
+          <div class="bot-info">
+            <h3>FitAI Coach</h3>
+            <div class="bot-status">● Online — AIML-Powered</div>
+          </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+          <!-- Messages added by JS -->
+        </div>
+
+        <div class="chat-input-area">
+          <textarea id="chat-input" placeholder="Ask me anything about fitness, nutrition, or your progress..." rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
+            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+          <button class="send-btn" onclick="sendChat()">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== DASHBOARD ====== -->
+  <div class="page" id="page-dashboard">
+    <!-- KPIs -->
+    <div class="dashboard-grid">
+      <div class="kpi-card green">
+        <div class="kpi-label">Total Workouts</div>
+        <div class="kpi-val" id="kpi-workouts">0</div>
+        <div class="kpi-change up" id="kpi-workouts-change">↑ 0 this week</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-label">Total Sets</div>
+        <div class="kpi-val" id="kpi-sets">0</div>
+        <div class="kpi-change up">↑ Today's sets</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-label">Total Reps</div>
+        <div class="kpi-val" id="kpi-reps">0</div>
+        <div class="kpi-change up">across all sessions</div>
+      </div>
+      <div class="kpi-card yellow">
+        <div class="kpi-label">Streak</div>
+        <div class="kpi-val" id="kpi-streak">0d</div>
+        <div class="kpi-change up" id="kpi-streak-txt">Keep it up!</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>Weekly Rep Volume</h3>
+        <canvas id="volumeChart" height="120"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Muscle Groups</h3>
+        <canvas id="muscleChart" height="120"></canvas>
+      </div>
+    </div>
+
+    <!-- Progress Charts -->
+    <div class="progress-chart-row">
+      <div class="chart-card">
+        <h3>Weight Progression</h3>
+        <canvas id="weightChart" height="100"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Macro Trends (7 days)</h3>
+        <canvas id="macroChart" height="100"></canvas>
+      </div>
+    </div>
+
+    <!-- Workout Log -->
+    <div class="workout-log">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h3 style="margin:0">Recent Workout Log</h3>
+        <button class="btn-sm btn-outline" onclick="clearWorkoutLog()">Clear Log</button>
+      </div>
+      <div id="workout-log-entries">
+        <div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:20px">
+          No workouts logged yet. Start training!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PROFILE ====== -->
+  <div class="page" id="page-profile">
+    <div class="profile-grid">
+      <!-- Profile card -->
+      <div>
+        <div class="profile-card">
+          <div class="profile-avatar" id="prof-avatar">A</div>
+          <div class="profile-name" id="prof-name">User</div>
+          <div class="profile-level" id="prof-level">🟢 Beginner</div>
+          <div class="stats-grid">
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="prof-workouts">0</div>
+              <div class="stat-mini-label">Workouts</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="prof-streak">0</div>
+              <div class="stat-mini-label">Day Streak</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="prof-weight-disp">—</div>
+              <div class="stat-mini-label">Weight (kg)</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="prof-goal-disp">—</div>
+              <div class="stat-mini-label">Goal</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daily recommendations -->
+        <div class="stat-card" style="margin-top:14px">
+          <h3>📋 Daily Targets</h3>
+          <div id="daily-targets" style="font-size:0.85rem;line-height:2;margin-top:8px;color:var(--muted)">
+            Loading recommendations...
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit profile -->
+      <div>
+        <div class="stat-card">
+          <h3>Edit Profile</h3>
+          <div class="form-grid" style="margin-top:14px">
+            <div class="input-group">
+              <label>Name</label>
+              <input type="text" id="prof-edit-name">
+            </div>
+            <div class="input-group">
+              <label>Age</label>
+              <input type="number" id="prof-edit-age">
+            </div>
+            <div class="input-group">
+              <label>Weight (kg)</label>
+              <input type="number" id="prof-edit-weight">
+            </div>
+            <div class="input-group">
+              <label>Height (cm)</label>
+              <input type="number" id="prof-edit-height">
+            </div>
+            <div class="input-group">
+              <label>Fitness Level</label>
+              <select id="prof-edit-level">
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Goal</label>
+              <select id="prof-edit-goal">
+                <option>Build Muscle</option>
+                <option>Lose Weight</option>
+                <option>Improve Strength</option>
+                <option>General Fitness</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-group" style="margin-top:14px">
+            <label>Calorie Target</label>
+            <input type="number" id="prof-edit-calories" placeholder="e.g. 2200">
+          </div>
+          <div class="form-grid">
+            <div class="input-group">
+              <label>Protein Target (g)</label>
+              <input type="number" id="prof-edit-protein" placeholder="e.g. 160">
+            </div>
+            <div class="input-group">
+              <label>Any Injuries / Limitations</label>
+              <input type="text" id="prof-edit-injuries" placeholder="e.g. bad knees">
+            </div>
+          </div>
+          <button class="btn-sm btn-green" style="margin-top:14px;width:100%;padding:12px" onclick="saveProfile()">Save Profile</button>
+        </div>
+
+        <!-- Recommended program -->
+        <div class="stat-card" style="margin-top:14px">
+          <h3>🏋️ Your Recommended Program</h3>
+          <div id="recommended-program" style="margin-top:12px;font-size:0.85rem;line-height:1.8;color:var(--muted)">
+            Loading program...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== STATE ==========
+let user = null;
+let reps = 0;
+let sets = 0;
+let targetReps = 12;
+let targetSets = 3;
+let currentExercise = 'squat';
+let isTimedExercise = false;
+let timerRunning = false;
+let timerSeconds = 0;
+let timerInterval = null;
+let demoRunning = false;
+let demoInterval = null;
+let cameraOn = false;
+let posePhase = 0; // 0 = up, 1 = down
+let fatigueLevel = 10;
+let currentSide = 'right'; // for side-change exercises
+let completedSets = [];
+let workoutLog = [];
+let charts = {};
+
+const TIMED_EXERCISES = ['plank'];
+const SIDE_EXERCISES = ['lunge', 'bicep_curl'];
+
+const EXERCISES = {
+  squat: { name: 'Squat', muscle: 'Legs', defaultReps: 12, defaultSets: 3 },
+  pushup: { name: 'Push-up', muscle: 'Chest', defaultReps: 15, defaultSets: 3 },
+  deadlift: { name: 'Deadlift', muscle: 'Back', defaultReps: 8, defaultSets: 4 },
+  lunge: { name: 'Lunge', muscle: 'Legs', defaultReps: 12, defaultSets: 3, side: true },
+  plank: { name: 'Plank', muscle: 'Core', timed: true },
+  bicep_curl: { name: 'Bicep Curl', muscle: 'Arms', defaultReps: 12, defaultSets: 3, side: true },
+  shoulder_press: { name: 'Shoulder Press', muscle: 'Shoulders', defaultReps: 10, defaultSets: 3 },
+  lat_pulldown: { name: 'Lat Pulldown', muscle: 'Back', defaultReps: 10, defaultSets: 3 }
+};
+
+const FORM_FEEDBACK = {
+  squat: [
+    '<span class="good">✓ Knees tracking over toes — excellent!</span>',
+    '<span class="warn">⚠ Keep your chest up, avoid rounding your back</span>',
+    '<span class="good">✓ Good depth — hitting parallel</span>',
+    '<span class="bad">✗ Heels lifting — try wider stance or elevate heels</span>',
+    '<span class="warn">⚠ Push through your heels on the way up</span>'
+  ],
+  pushup: [
+    '<span class="good">✓ Core engaged, body in straight line</span>',
+    '<span class="warn">⚠ Elbows flaring too wide — tuck 45°</span>',
+    '<span class="good">✓ Full range of motion detected</span>',
+    '<span class="bad">✗ Hips sagging — brace your core harder</span>'
+  ],
+  deadlift: [
+    '<span class="good">✓ Bar path close to body — great technique</span>',
+    '<span class="warn">⚠ Neutral spine — avoid rounding lower back</span>',
+    '<span class="good">✓ Hip hinge pattern correct</span>',
+    '<span class="bad">✗ STOP — lumbar flexion detected! Reduce weight</span>'
+  ],
+  plank: [
+    '<span class="good">✓ Neutral spine — perfect position</span>',
+    '<span class="warn">⚠ Hips rising — lower them down</span>',
+    '<span class="warn">⚠ Head dropping — keep neck neutral</span>',
+    '<span class="good">✓ Solid hold — breathe steadily</span>'
+  ],
+  default: [
+    '<span class="good">✓ Good form detected</span>',
+    '<span class="warn">⚠ Maintain controlled movement</span>',
+    '<span class="good">✓ Full range of motion</span>'
+  ]
+};
+
+const AIML_KB = [
+  { q: ['protein', 'how much protein'], a: (u) => `Based on your profile (${u.weight}kg, ${u.level}), you should target <strong>${Math.round(u.weight * (u.level === 'advanced' ? 2.2 : u.level === 'intermediate' ? 2.0 : 1.8))}g of protein per day</strong> — roughly 1.8-2.2g per kg of bodyweight. Spread it across 4-5 meals for best absorption. Your top sources should be chicken breast, eggs, Greek yogurt, and whey protein.` },
+  { q: ['squat', 'squat form', 'improve squat'], a: () => `For a stronger squat: 1) <strong>Bar position</strong> — high bar for quad focus, low bar for posterior chain. 2) <strong>Stance</strong> — shoulder-width, toes ~30° out. 3) <strong>Depth</strong> — break parallel if mobility allows. 4) <strong>Cue</strong> — "spread the floor with your feet" to activate glutes. 5) Practice <strong>goblet squats</strong> for motor pattern first.` },
+  { q: ['fat loss', 'lose weight', 'lose fat'], a: (u) => `For fat loss at your level: Create a <strong>300-500 calorie deficit</strong> from your TDEE (~${Math.round(u.weight * 25)} kcal est.). Keep protein HIGH to preserve muscle — ${Math.round(u.weight * 2)}g/day. Do <strong>3-4 resistance sessions</strong> + 2 cardio sessions weekly. Avoid dropping below ${Math.round(u.weight * 24)} calories.` },
+  { q: ['pre-workout', 'eat before workout', 'pre workout meal'], a: () => `<strong>Pre-workout nutrition (1-2h before):</strong><br>• 30-50g complex carbs (oats, rice, banana)<br>• 20-30g lean protein (chicken, Greek yogurt)<br>• Keep fats low pre-workout (slows digestion)<br>• Hydrate with 400-600ml water<br><br>30min before: banana + coffee works great for quick energy! 🍌` },
+  { q: ['rest days', 'recovery', 'how many rest days'], a: (u) => `For a ${u.level}, take <strong>${u.level === 'beginner' ? '2-3' : u.level === 'intermediate' ? '1-2' : '1'} rest days per week</strong>. Active recovery (walking, yoga, stretching) is better than complete inactivity. Sleep 7-9 hours — this is when muscle protein synthesis peaks. Signs you need more rest: persistent soreness, declining performance, poor sleep.` },
+  { q: ['doms', 'muscle soreness', 'prevent soreness'], a: () => `<strong>Minimize DOMS:</strong><br>• Progressive overload (don't jump weight too fast)<br>• Proper warm-up (5-10 min dynamic stretching)<br>• Cool-down & static stretching post-workout<br>• Post-workout protein within 30-60min<br>• Foam rolling the next day<br>• Stay hydrated — dehydration worsens DOMS<br><br>Mild soreness is normal; sharp pain = stop immediately.` },
+  { q: ['macro', 'macros today', 'on track', 'check macro'], a: () => { const m = getMacros(); return `<strong>Today's macro progress:</strong><br>🔥 Calories: ${m.cal} / ${m.calTarget} (${Math.round(m.cal/m.calTarget*100)}%)<br>💪 Protein: ${m.prot}g / ${m.protTarget}g<br>🍞 Carbs: ${m.carbs}g / ${m.carbsTarget}g<br>🥑 Fats: ${m.fats}g / ${m.fatsTarget}g<br><br>${m.cal < m.calTarget * 0.5 ? '⚠️ You\'re under-fueled — eat more to support your training!' : m.cal > m.calTarget * 1.1 ? '⚠️ Over target — adjust dinner tonight' : '✅ You\'re on track!'}` } },
+  { q: ['beginner', 'starting', 'new to gym', 'workout plan'], a: () => `<strong>Beginner Program (3 days/week):</strong><br>Day A: Squat, Bench, Deadlift (3×8)<br>Day B: Squat, OHP, Rows (3×8)<br><br>Start light! Master form before adding weight. Add 2.5kg per session on upper body, 5kg on lower. Follow this for 3-6 months — it works better than complex programs. Focus on: <strong>sleep, protein, consistency.</strong>` },
+  { q: ['deadlift', 'deadlift form'], a: () => `<strong>Deadlift technique keys:</strong><br>1) Hip hinge — push hips back, not squat down<br>2) Bar over mid-foot, touching your shins<br>3) Shoulders JUST over the bar<br>4) Drive through the floor, keep chest up<br>5) Lock out glutes at top — don't hyperextend<br><br>⚠️ Deadlifts are asymmetric — switch your mixed grip side regularly to prevent imbalances.` },
+  { q: ['weight', 'how much weight', 'what weight'], a: (u) => `Based on your profile (${u.level}), start with:<br>• Squat: ${u.level === 'beginner' ? '40-60' : u.level === 'intermediate' ? '60-100' : '100-140'}kg<br>• Deadlift: ${u.level === 'beginner' ? '50-70' : u.level === 'intermediate' ? '80-120' : '120-180'}kg<br>• Bench: ${u.level === 'beginner' ? '30-50' : u.level === 'intermediate' ? '50-80' : '80-120'}kg<br><br>Use the 2-rep rule: if you can't do 2 more reps at end of set, weight is too heavy.` }
+];
+
+function findBestAIMLAnswer(question) {
+  const q = question.toLowerCase();
+  let best = null;
+  let bestScore = 0;
+  
+  for (const entry of AIML_KB) {
+    let score = 0;
+    for (const keyword of entry.q) {
+      if (q.includes(keyword)) {
+        score += keyword.split(' ').length; // longer matches = better score
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = entry;
+    }
+  }
+  
+  if (best && bestScore > 0) {
+    return typeof best.a === 'function' ? best.a(user) : best.a;
+  }
+  return null;
+}
+
+// ========== AUTH ==========
+function switchAuth(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));
+  document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+}
+
+function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const stored = localStorage.getItem('fitai_user');
+  if (stored) {
+    user = JSON.parse(stored);
+    if (user.email === email) { launchApp(); return; }
+  }
+  // demo login
+  user = {
+    name: 'Alex', email, age: 25, weight: 75, height: 178,
+    level: 'beginner', goal: 'Build Muscle',
+    calorieTarget: 2200, proteinTarget: 160, carbsTarget: 250, fatsTarget: 70,
+    injuries: '', streak: 3
+  };
+  saveUser();
+  launchApp();
+}
+
+function doRegister() {
+  const name = document.getElementById('reg-name').value || 'User';
+  const age = parseInt(document.getElementById('reg-age').value) || 25;
+  const weight = parseFloat(document.getElementById('reg-weight').value) || 70;
+  const height = parseFloat(document.getElementById('reg-height').value) || 170;
+  const level = document.getElementById('reg-level').value;
+  const goal = document.getElementById('reg-goal').value;
+  const email = document.getElementById('reg-email').value;
+  
+  if (!email) { showNotif('Please enter your email', 'warning'); return; }
+  
+  user = {
+    name, age, weight, height, level, goal, email,
+    calorieTarget: Math.round(weight * (level === 'beginner' ? 28 : level === 'intermediate' ? 30 : 32)),
+    proteinTarget: Math.round(weight * (level === 'advanced' ? 2.2 : level === 'intermediate' ? 2.0 : 1.8)),
+    carbsTarget: 250, fatsTarget: 70, injuries: '', streak: 0
+  };
+  saveUser();
+  launchApp();
+}
+
+function doLogout() {
+  user = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+
+function saveUser() {
+  localStorage.setItem('fitai_user', JSON.stringify(user));
+}
+
+function launchApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('app').style.flexDirection = 'column';
+  
+  // Load workout log
+  const saved = localStorage.getItem('fitai_log');
+  if (saved) workoutLog = JSON.parse(saved);
+  
+  initUI();
+  initCharts();
+  addBotMessage(`Hey ${user.name.split(' ')[0]}! 💪 I'm your FitAI coach. I know you're ${user.age}y/o, ${user.weight}kg, goal: <strong>${user.goal}</strong>. Ready to crush today's session? Ask me anything about fitness, nutrition, or check your macros!`);
+}
+
+function initUI() {
+  const initial = user.name.charAt(0).toUpperCase();
+  document.getElementById('nav-avatar').textContent = initial;
+  document.getElementById('nav-name').textContent = user.name;
+  document.getElementById('prof-avatar').textContent = initial;
+  document.getElementById('prof-name').textContent = user.name;
+  document.getElementById('prof-level').textContent = {beginner:'🟢 Beginner', intermediate:'🟡 Intermediate', advanced:'🔴 Advanced'}[user.level];
+  document.getElementById('prof-workouts').textContent = workoutLog.length;
+  document.getElementById('prof-streak').textContent = user.streak || 0;
+  document.getElementById('prof-weight-disp').textContent = user.weight + 'kg';
+  document.getElementById('prof-goal-disp').textContent = (user.goal || '').split(' ')[0];
+
+  // Profile form
+  document.getElementById('prof-edit-name').value = user.name;
+  document.getElementById('prof-edit-age').value = user.age;
+  document.getElementById('prof-edit-weight').value = user.weight;
+  document.getElementById('prof-edit-height').value = user.height;
+  document.getElementById('prof-edit-level').value = user.level;
+  document.getElementById('prof-edit-goal').value = user.goal;
+  document.getElementById('prof-edit-calories').value = user.calorieTarget;
+  document.getElementById('prof-edit-protein').value = user.proteinTarget;
+  document.getElementById('prof-edit-injuries').value = user.injuries || '';
+
+  // Macro targets
+  document.getElementById('mac-cal-target').textContent = user.calorieTarget;
+  document.getElementById('mac-prot-target').textContent = user.proteinTarget + 'g';
+  document.getElementById('mac-carbs-target').textContent = user.carbsTarget + 'g';
+  document.getElementById('mac-fats-target').textContent = user.fatsTarget + 'g';
+
+  updateDailyTargets();
+  updateRecommendation();
+  updateSetTracker();
+  renderWorkoutLog();
+  updateDashboard();
+}
+
+// ========== PAGE NAV ==========
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => { if (t.textContent.toLowerCase().includes(id.slice(0,3))) t.classList.add('active'); });
+  
+  if (id === 'dashboard') { setTimeout(updateCharts, 100); }
+}
+
+// ========== REP COUNTER ==========
+function addRep() {
+  if (isTimedExercise) return;
+  reps++;
+  updateRepDisplay();
+  fatigueLevel = Math.min(100, fatigueLevel + 3);
+  updateFatigue();
+  checkCriticalLimits();
+}
+
+function removeRep() {
+  if (reps > 0) { reps--; updateRepDisplay(); }
+}
+
+function resetReps() {
+  reps = 0;
+  updateRepDisplay();
+  showNotif('Rep counter reset to 0', 'success');
+}
+
+function updateRepDisplay() {
+  const el = document.getElementById('rep-display');
+  el.textContent = reps;
+  document.getElementById('rep-progress').style.width = Math.min(100, (reps/targetReps)*100) + '%';
+  document.getElementById('logged-reps').textContent = reps;
+  
+  el.classList.remove('warn','danger');
+  if (reps >= targetReps * 1.5) el.classList.add('danger');
+  else if (reps >= targetReps) el.classList.add('warn');
+}
+
+// ========== EXERCISE CHANGE ==========
+function changeExercise() {
+  const ex = document.getElementById('exercise-select').value;
+  if (ex === currentExercise) return;
+  
+  currentExercise = ex;
+  reps = 0;
+  sets = 0;
+  completedSets = [];
+  currentSide = 'right';
+  isTimedExercise = TIMED_EXERCISES.includes(ex);
+  
+  const info = EXERCISES[ex];
+  if (!isTimedExercise) {
+    targetReps = info.defaultReps || 12;
+    targetSets = info.defaultSets || 3;
+    document.getElementById('target-reps').textContent = targetReps;
+  }
+  
+  updateRepDisplay();
+  updateSetTracker();
+  updateSetInfo();
+  
+  // Show timer card only for timed exercises
+  document.getElementById('timer-card').style.display = isTimedExercise ? 'block' : 'block';
+  if (isTimedExercise) {
+    resetTimer();
+    document.getElementById('timer-label').textContent = '(' + info.name + ')';
+  }
+  
+  // Side change exercises
+  const sideEl = document.getElementById('side-indicator');
+  if (SIDE_EXERCISES.includes(ex)) {
+    sideEl.style.display = 'block';
+    sideEl.textContent = '⚡ START: RIGHT SIDE';
+  } else {
+    sideEl.style.display = 'none';
+  }
+  
+  document.getElementById('form-feedback').innerHTML = `Loaded: <strong>${info.name}</strong> — ${isTimedExercise ? 'Hold for time' : `${targetReps} reps × ${targetSets} sets`}. ${info.muscle} focused exercise.`;
+  updateRecommendation();
+  
+  showNotif(`Switched to ${info.name}`, 'success');
+}
+
+// ========== SET TRACKING ==========
+function updateSetTracker() {
+  const container = document.getElementById('set-tracker');
+  container.innerHTML = '';
+  for (let i = 0; i < targetSets; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'set-dot' + (i < completedSets.length ? ' done' : '');
+    dot.textContent = i < completedSets.length ? '✓' : (i + 1);
+    container.appendChild(dot);
+  }
+}
+
+function updateSetInfo() {
+  document.getElementById('set-info').textContent = `Set ${completedSets.length + 1}/${targetSets}`;
+}
+
+function logSet() {
+  if (isTimedExercise && timerSeconds < 5) {
+    showNotif('Start the timer and hold for at least 5 seconds', 'warning');
+    return;
+  }
+  
+  const weight = parseFloat(document.getElementById('weight-used').value) || 0;
+  const info = EXERCISES[currentExercise];
+  
+  completedSets.push({ reps, weight, side: currentSide, time: timerSeconds });
+  
+  // Add to workout log
+  const entry = {
+    exercise: info.name,
+    muscle: info.muscle,
+    reps: isTimedExercise ? `${timerSeconds}s hold` : reps,
+    weight,
+    set: completedSets.length,
+    timestamp: new Date().toLocaleTimeString(),
+    date: new Date().toLocaleDateString()
+  };
+  workoutLog.push(entry);
+  localStorage.setItem('fitai_log', JSON.stringify(workoutLog));
+  
+  showNotif(`Set ${completedSets.length} logged! ${isTimedExercise ? timerSeconds + 's' : reps + ' reps'} ${weight ? '@ ' + weight + 'kg' : ''}`, 'success');
+  
+  updateSetTracker();
+  updateSetInfo();
+  updateDashboard();
+  updateTodaySummary();
+  renderWorkoutLog();
+  
+  // Handle side change for applicable exercises
+  if (SIDE_EXERCISES.includes(currentExercise) && completedSets.length % 1 === 0) {
+    currentSide = currentSide === 'right' ? 'left' : 'right';
+    const sideEl = document.getElementById('side-indicator');
+    sideEl.style.display = 'block';
+    sideEl.textContent = `⚡ SWITCH TO: ${currentSide.toUpperCase()} SIDE`;
+    showNotif(`Switch to your ${currentSide} side!`, 'warning');
+  }
+  
+  // Reset reps for next set
+  reps = 0;
+  updateRepDisplay();
+  if (isTimedExercise) resetTimer();
+  
+  // Complete workout
+  if (completedSets.length >= targetSets) {
+    showNotif(`💪 ${info.name} complete! All ${targetSets} sets done!`, 'success');
+  }
+}
+
+function logWorkoutSet() { logSet(); }
+
+function endWorkout() {
+  if (workoutLog.length === 0) { showNotif('No sets logged yet', 'warning'); return; }
+  
+  // Update streak
+  user.streak = (user.streak || 0) + 1;
+  saveUser();
+  
+  showNotif(`Workout complete! 🎉 ${workoutLog.filter(e => e.date === new Date().toLocaleDateString()).length} sets logged. Streak: ${user.streak} days!`, 'success');
+  updateDashboard();
+}
+
+// ========== TIMER ==========
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    updateTimerDisplay();
+    fatigueLevel = Math.min(100, fatigueLevel + 0.5);
+    updateFatigue();
+    
+    // Plank cues
+    if (currentExercise === 'plank') {
+      if (timerSeconds === 30) showNotif('30s — Keep breathing!', 'success');
+      if (timerSeconds === 60) showNotif('1 minute — Amazing form!', 'success');
+      if (timerSeconds === 120) showNotif('2 minutes — Elite level!', 'success');
+    }
+  }, 1000);
+}
+
+function pauseTimer() {
+  timerRunning = false;
+  clearInterval(timerInterval);
+}
+
+function resetTimer() {
+  pauseTimer();
+  timerSeconds = 0;
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+  const s = (timerSeconds % 60).toString().padStart(2, '0');
+  document.getElementById('timer-display').textContent = `${m}:${s}`;
+}
+
+// ========== MEDIAPIPE POSE DETECTION ==========
+let poseDetector = null;
+let mpCamera = null;
+let videoStream = null;
+
+// MediaPipe landmark indices
+const MP = {
+  nose:0, lEye:2, rEye:5, lEar:7, rEar:8,
+  lShoulder:11, rShoulder:12,
+  lElbow:13, rElbow:14,
+  lWrist:15, rWrist:16,
+  lHip:23, rHip:24,
+  lKnee:25, rKnee:26,
+  lAnkle:27, rAnkle:28,
+  lHeel:29, rHeel:30,
+  lToe:31, rToe:32
+};
+
+const CONNECTIONS = [
+  [MP.lShoulder, MP.rShoulder],
+  [MP.lShoulder, MP.lElbow], [MP.lElbow, MP.lWrist],
+  [MP.rShoulder, MP.rElbow], [MP.rElbow, MP.rWrist],
+  [MP.lShoulder, MP.lHip], [MP.rShoulder, MP.rHip],
+  [MP.lHip, MP.rHip],
+  [MP.lHip, MP.lKnee], [MP.lKnee, MP.lAnkle],
+  [MP.rHip, MP.rKnee], [MP.rKnee, MP.rAnkle],
+  [MP.lAnkle, MP.lHeel], [MP.rAnkle, MP.rHeel],
+  [MP.lHeel, MP.lToe], [MP.rHeel, MP.rToe],
+  [MP.nose, MP.lShoulder], [MP.nose, MP.rShoulder]
+];
+
+function getAngle(a, b, c) {
+  // Angle at point B between A-B-C
+  const ab = { x: a.x - b.x, y: a.y - b.y };
+  const cb = { x: c.x - b.x, y: c.y - b.y };
+  const dot = ab.x * cb.x + ab.y * cb.y;
+  const mag = Math.sqrt(ab.x**2 + ab.y**2) * Math.sqrt(cb.x**2 + cb.y**2);
+  if (mag === 0) return 180;
+  return Math.round(Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180 / Math.PI);
+}
+
+// Per-exercise rep counting state
+let jointAngleHistory = [];
+let repPhase = 'up'; // 'up' | 'down'
+let lastFeedbackTime = 0;
+let feedbackIdx = 0;
+
+function analyzeExercisePose(landmarks, ctx, W, H) {
+  const lm = landmarks;
+  const now = Date.now();
+
+  // Helper: pixel coords
+  const pt = (i) => ({ x: lm[i].x * W, y: lm[i].y * H, v: lm[i].visibility });
+
+  let kneeAngleL = 180, kneeAngleR = 180;
+  let elbowAngleL = 180, elbowAngleR = 180;
+  let hipAngle = 180;
+  let feedback = '';
+  let didRep = false;
+
+  const lHip = lm[MP.lHip], rHip = lm[MP.rHip];
+  const lKnee = lm[MP.lKnee], rKnee = lm[MP.rKnee];
+  const lAnkle = lm[MP.lAnkle], rAnkle = lm[MP.rAnkle];
+  const lShoulder = lm[MP.lShoulder], rShoulder = lm[MP.rShoulder];
+  const lElbow = lm[MP.lElbow], rElbow = lm[MP.rElbow];
+  const lWrist = lm[MP.lWrist], rWrist = lm[MP.rWrist];
+
+  if (currentExercise === 'squat') {
+    kneeAngleL = getAngle(lHip, lKnee, lAnkle);
+    kneeAngleR = getAngle(rHip, rKnee, rAnkle);
+    const avgKnee = (kneeAngleL + kneeAngleR) / 2;
+
+    // Draw angle labels
+    drawAngleLabel(ctx, pt(MP.lKnee), kneeAngleL + '°', avgKnee < 100 ? '#00ff88' : '#ffaa00');
+    drawAngleLabel(ctx, pt(MP.rKnee), kneeAngleR + '°', avgKnee < 100 ? '#00ff88' : '#ffaa00');
+
+    // Rep logic: down = knees bent <100°, up = knees straight >160°
+    if (avgKnee < 100 && repPhase === 'up') {
+      repPhase = 'down';
+    } else if (avgKnee > 160 && repPhase === 'down') {
+      repPhase = 'up';
+      didRep = true;
+    }
+
+    // Form feedback
+    if (avgKnee < 85) feedback = '<span class="good">✓ Great depth! Below parallel.</span>';
+    else if (avgKnee < 110) feedback = '<span class="good">✓ Good squat — hit parallel.</span>';
+    else feedback = '<span class="warn">⚠ Go deeper — break parallel for best results.</span>';
+
+    // Check knee-over-toe (x alignment)
+    const lKneePx = pt(MP.lKnee), lToePx = pt(MP.lToe);
+    if (lKneePx.v > 0.5 && lToePx.v > 0.5 && Math.abs(lKneePx.x - lToePx.x) > W * 0.08)
+      feedback += '<br><span class="warn">⚠ Knees caving in — push knees out.</span>';
+
+  } else if (currentExercise === 'pushup') {
+    elbowAngleL = getAngle(lShoulder, lElbow, lWrist);
+    elbowAngleR = getAngle(rShoulder, rElbow, rWrist);
+    const avgElbow = (elbowAngleL + elbowAngleR) / 2;
+
+    drawAngleLabel(ctx, pt(MP.lElbow), elbowAngleL + '°', avgElbow < 100 ? '#00ff88' : '#ffaa00');
+    drawAngleLabel(ctx, pt(MP.rElbow), elbowAngleR + '°', avgElbow < 100 ? '#00ff88' : '#ffaa00');
+
+    if (avgElbow < 95 && repPhase === 'up') repPhase = 'down';
+    else if (avgElbow > 155 && repPhase === 'down') { repPhase = 'up'; didRep = true; }
+
+    if (avgElbow < 90) feedback = '<span class="good">✓ Full depth reached!</span>';
+    else feedback = '<span class="warn">⚠ Lower your chest closer to the ground.</span>';
+
+    // Check body line (hip sag): hip should be between shoulder and ankle Y
+    const hipY = (lm[MP.lHip].y + lm[MP.rHip].y) / 2;
+    const shoulderY = (lm[MP.lShoulder].y + lm[MP.rShoulder].y) / 2;
+    const ankleY = (lm[MP.lAnkle].y + lm[MP.rAnkle].y) / 2;
+    if (hipY > (shoulderY + ankleY) / 2 + 0.08)
+      feedback += '<br><span class="bad">✗ Hips sagging — engage your core!</span>';
+
+  } else if (currentExercise === 'bicep_curl') {
+    elbowAngleL = getAngle(lShoulder, lElbow, lWrist);
+    elbowAngleR = getAngle(rShoulder, rElbow, rWrist);
+    const side = currentSide === 'left' ? elbowAngleL : elbowAngleR;
+    const labelPt = currentSide === 'left' ? pt(MP.lElbow) : pt(MP.rElbow);
+    drawAngleLabel(ctx, labelPt, side + '°', side < 60 ? '#00ff88' : '#ffaa00');
+
+    if (side < 50 && repPhase === 'up') repPhase = 'down';
+    else if (side > 150 && repPhase === 'down') { repPhase = 'up'; didRep = true; }
+
+    feedback = side < 60 ? '<span class="good">✓ Full contraction!</span>' :
+      '<span class="warn">⚠ Curl higher — squeeze at the top.</span>';
+
+  } else if (currentExercise === 'shoulder_press') {
+    elbowAngleL = getAngle(lShoulder, lElbow, lWrist);
+    elbowAngleR = getAngle(rShoulder, rElbow, rWrist);
+    const avg = (elbowAngleL + elbowAngleR) / 2;
+    drawAngleLabel(ctx, pt(MP.lElbow), elbowAngleL + '°', avg > 160 ? '#00ff88' : '#ffaa00');
+    drawAngleLabel(ctx, pt(MP.rElbow), elbowAngleR + '°', avg > 160 ? '#00ff88' : '#ffaa00');
+
+    if (avg > 165 && repPhase === 'down') { repPhase = 'up'; didRep = true; }
+    else if (avg < 100 && repPhase === 'up') repPhase = 'down';
+
+    feedback = avg > 160 ? '<span class="good">✓ Full lockout!</span>' :
+      '<span class="warn">⚠ Extend arms fully overhead.</span>';
+
+  } else if (currentExercise === 'deadlift' || currentExercise === 'lat_pulldown' || currentExercise === 'lunge') {
+    hipAngle = getAngle(lShoulder, lHip, lKnee);
+    kneeAngleL = getAngle(lHip, lKnee, lAnkle);
+    drawAngleLabel(ctx, pt(MP.lHip), hipAngle + '°', '#00ff88');
+    drawAngleLabel(ctx, pt(MP.lKnee), kneeAngleL + '°', kneeAngleL > 150 ? '#00ff88' : '#ffaa00');
+
+    if (currentExercise === 'deadlift') {
+      if (hipAngle > 160 && repPhase === 'down') { repPhase = 'up'; didRep = true; }
+      else if (hipAngle < 90 && repPhase === 'up') repPhase = 'down';
+      feedback = hipAngle > 150 ? '<span class="good">✓ Full lockout — good hip extension.</span>' :
+        '<span class="warn">⚠ Drive your hips forward at the top.</span>';
+      const backAngle = getAngle(lm[MP.nose], lShoulder, lHip);
+      if (backAngle < 150) feedback += '<br><span class="bad">✗ Keep your back straight — avoid rounding!</span>';
+    } else if (currentExercise === 'lunge') {
+      if (kneeAngleL < 100 && repPhase === 'up') repPhase = 'down';
+      else if (kneeAngleL > 160 && repPhase === 'down') { repPhase = 'up'; didRep = true; }
+      feedback = kneeAngleL < 100 ? '<span class="good">✓ Good lunge depth.</span>' :
+        '<span class="warn">⚠ Bend your knee to 90°.</span>';
+    } else {
+      feedback = '<span class="good">✓ Maintain controlled movement.</span>';
+    }
+
+  } else if (currentExercise === 'plank') {
+    const hipY = (lm[MP.lHip].y + lm[MP.rHip].y) / 2;
+    const shoulderY = (lm[MP.lShoulder].y + lm[MP.rShoulder].y) / 2;
+    const ankleY = (lm[MP.lAnkle].y + lm[MP.rAnkle].y) / 2;
+    const deviation = Math.abs(hipY - (shoulderY + ankleY) / 2);
+    feedback = deviation < 0.05 ? '<span class="good">✓ Perfect plank position!</span>' :
+      hipY > (shoulderY + ankleY) / 2 + 0.05 ? '<span class="bad">✗ Hips sagging — raise them up!</span>' :
+      '<span class="warn">⚠ Hips too high — lower slightly.</span>';
+  }
+
+  // Count rep & update feedback
+  if (didRep && !isTimedExercise) {
+    addRep();
+    if (now - lastFeedbackTime > 1500) {
+      lastFeedbackTime = now;
+      const feedbacks = FORM_FEEDBACK[currentExercise] || FORM_FEEDBACK.default;
+      feedbackIdx = (feedbackIdx + 1) % feedbacks.length;
+    }
+  }
+
+  // Always update form feedback text
+  if (feedback && now - lastFeedbackTime > 500) {
+    document.getElementById('form-feedback').innerHTML = feedback;
+  }
+
+  // Draw confidence HUD
+  const avgVis = landmarks.slice(11, 29).reduce((s, l) => s + (l.visibility || 0), 0) / 18;
+  ctx.save();
+  ctx.font = 'bold 12px monospace';
+  ctx.fillStyle = 'rgba(0,255,136,0.85)';
+  ctx.fillText(`POSE: ${Math.round(avgVis * 100)}%  ${repPhase === 'down' ? 'DOWN ↓' : 'UP ↑'}`, 10, 22);
+  ctx.restore();
+}
+
+function drawAngleLabel(ctx, pt, text, color) {
+  if (!pt || pt.v < 0.4) return;
+  ctx.save();
+  ctx.font = 'bold 13px monospace';
+  ctx.fillStyle = color;
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.lineWidth = 3;
+  ctx.strokeText(text, pt.x + 10, pt.y - 8);
+  ctx.fillText(text, pt.x + 10, pt.y - 8);
+  ctx.restore();
+}
+
+function drawSkeleton(landmarks, ctx, W, H) {
+  if (!landmarks || landmarks.length < 33) return;
+
+  // Draw bones
+  CONNECTIONS.forEach(([i, j]) => {
+    const a = landmarks[i], b = landmarks[j];
+    if (!a || !b || a.visibility < 0.4 || b.visibility < 0.4) return;
+    ctx.beginPath();
+    ctx.moveTo(a.x * W, a.y * H);
+    ctx.lineTo(b.x * W, b.y * H);
+    // Color legs vs upper body
+    const isLeg = i >= MP.lHip;
+    ctx.strokeStyle = isLeg ? '#3b82f6' : '#00ff88';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.85;
+    ctx.stroke();
+  });
+
+  // Draw joints
+  landmarks.forEach((lm, i) => {
+    if (lm.visibility < 0.4) return;
+    const x = lm.x * W, y = lm.y * H;
+    ctx.beginPath();
+    ctx.arc(x, y, i === MP.nose ? 8 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = 1;
+    ctx.fill();
+    ctx.strokeStyle = i >= MP.lHip ? '#3b82f6' : '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // Draw head circle around nose
+  const nose = landmarks[MP.nose];
+  if (nose && nose.visibility > 0.5) {
+    ctx.beginPath();
+    ctx.arc(nose.x * W, nose.y * H, 22, 0, Math.PI * 2);
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.7;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+async function toggleCamera() {
+  if (cameraOn) {
+    // Stop camera
+    cameraOn = false;
+    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+    if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+    document.getElementById('poseVideo').style.display = 'none';
+    document.getElementById('camera-placeholder').style.display = 'flex';
+    const ctx = document.getElementById('poseCanvas').getContext('2d');
+    ctx.clearRect(0, 0, 640, 480);
+    showNotif('Camera stopped', 'success');
+    return;
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showNotif('Camera API not supported in this browser. Try Chrome/Edge.', 'error');
+    return;
+  }
+
+  // Show loading
+  const loadingEl = document.getElementById('camera-loading');
+  loadingEl.style.display = 'flex';
+  document.getElementById('camera-placeholder').style.display = 'none';
+
+  try {
+    // Get camera stream
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+    });
+
+    const video = document.getElementById('poseVideo');
+    video.srcObject = videoStream;
+    video.style.display = 'block';
+    await video.play();
+
+    const canvas = document.getElementById('poseCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Init MediaPipe Pose
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+    });
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+
+    pose.onResults((results) => {
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // Draw mirrored video frame
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(results.image, -W, 0, W, H);
+      ctx.restore();
+
+      if (results.poseLandmarks) {
+        // Mirror landmarks (flip x for front-facing camera)
+        const mirrored = results.poseLandmarks.map(lm => ({
+          ...lm, x: 1 - lm.x
+        }));
+        drawSkeleton(mirrored, ctx, W, H);
+        analyzeExercisePose(mirrored, ctx, W, H);
+      }
+    });
+
+    poseDetector = pose;
+    cameraOn = true;
+    loadingEl.style.display = 'none';
+
+    // Use MediaPipe Camera util if available, else manual loop
+    if (typeof Camera !== 'undefined') {
+      mpCamera = new Camera(video, {
+        onFrame: async () => { await pose.send({ image: video }); },
+        width: 640, height: 480
+      });
+      mpCamera.start();
+    } else {
+      // Manual animation loop fallback
+      async function loop() {
+        if (!cameraOn) return;
+        await pose.send({ image: video });
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    showNotif('📷 Camera live! Pose detection active.', 'success');
+
+  } catch (err) {
+    loadingEl.style.display = 'none';
+    document.getElementById('camera-placeholder').style.display = 'flex';
+    if (err.name === 'NotAllowedError') {
+      showNotif('Camera permission denied. Allow camera access and try again.', 'error');
+    } else if (err.name === 'NotFoundError') {
+      showNotif('No camera found on this device.', 'error');
+    } else {
+      showNotif('Camera error: ' + err.message, 'error');
+    }
+    console.error('Camera error:', err);
+  }
+}
+
+// ========== DEMO MODE (no camera) ==========
+function toggleDemo() {
+  demoRunning = !demoRunning;
+  const btn = document.getElementById('demo-btn');
+
+  if (demoRunning) {
+    document.getElementById('camera-placeholder').style.display = 'none';
+    btn.textContent = '⏹ Stop Demo';
+    startDemoAnimation();
+  } else {
+    btn.textContent = '▶ Demo Mode';
+    clearInterval(demoInterval);
+    const ctx = document.getElementById('poseCanvas').getContext('2d');
+    ctx.clearRect(0, 0, 640, 480);
+    if (!cameraOn) document.getElementById('camera-placeholder').style.display = 'flex';
+  }
+}
+
+let animFrame = 0;
+function startDemoAnimation() {
+  const canvas = document.getElementById('poseCanvas');
+  const ctx = canvas.getContext('2d');
+  let repCounted = false;
+  let feedbackIdx = 0;
+
+  demoInterval = setInterval(() => {
+    animFrame++;
+    const phase = (Math.sin(animFrame * 0.04) + 1) / 2;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Grid background
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    drawDemoSkeleton(ctx, phase, currentExercise, W, H);
+
+    if (phase > 0.95 && !repCounted) {
+      repCounted = true;
+      addRep();
+      const feedbacks = FORM_FEEDBACK[currentExercise] || FORM_FEEDBACK.default;
+      document.getElementById('form-feedback').innerHTML = feedbacks[feedbackIdx % feedbacks.length];
+      feedbackIdx++;
+    }
+    if (phase < 0.1) repCounted = false;
+  }, 50);
+}
+
+function drawDemoSkeleton(ctx, phase, exercise, W, H) {
+  const cx = W / 2, cy = H / 2;
+  let kp = {};
+
+  if (exercise === 'squat') {
+    const d = phase * 80;
+    kp = { nose:[cx,cy-160+d*0.3], neck:[cx,cy-130+d*0.3],
+      lShoulder:[cx-40,cy-110+d*0.2], rShoulder:[cx+40,cy-110+d*0.2],
+      lElbow:[cx-55,cy-65], rElbow:[cx+55,cy-65],
+      lWrist:[cx-50,cy-25], rWrist:[cx+50,cy-25],
+      lHip:[cx-25,cy-10+d*0.5], rHip:[cx+25,cy-10+d*0.5],
+      lKnee:[cx-35,cy+70+d*0.15], rKnee:[cx+35,cy+70+d*0.15],
+      lAnkle:[cx-30,cy+145], rAnkle:[cx+30,cy+145] };
+  } else if (exercise === 'pushup') {
+    const d = phase * 40;
+    kp = { nose:[cx-160,cy-25+d], neck:[cx-130,cy-15+d],
+      lShoulder:[cx-100,cy+10+d], rShoulder:[cx-100,cy-30+d],
+      lElbow:[cx-50,cy+22+d], rElbow:[cx-50,cy-22+d],
+      lWrist:[cx-5,cy+38], rWrist:[cx-5,cy-38],
+      lHip:[cx+55,cy+10], rHip:[cx+55,cy-10],
+      lKnee:[cx+115,cy+8], rKnee:[cx+115,cy-8],
+      lAnkle:[cx+158,cy+10], rAnkle:[cx+158,cy-10] };
+  } else if (exercise === 'plank') {
+    kp = { nose:[cx-160,cy-15], neck:[cx-125,cy-8],
+      lShoulder:[cx-90,cy+5], rShoulder:[cx-90,cy-25],
+      lElbow:[cx-30,cy+15], rElbow:[cx-30,cy-15],
+      lWrist:[cx+20,cy+18], rWrist:[cx+20,cy-18],
+      lHip:[cx+60,cy+5], rHip:[cx+60,cy-5],
+      lKnee:[cx+115,cy+5], rKnee:[cx+115,cy-5],
+      lAnkle:[cx+160,cy+8], rAnkle:[cx+160,cy-8] };
+  } else {
+    const bend = phase * 55;
+    kp = { nose:[cx,cy-160], neck:[cx,cy-130],
+      lShoulder:[cx-45,cy-110], rShoulder:[cx+45,cy-110],
+      lElbow:[cx-65-bend*0.3,cy-65+bend*0.2], rElbow:[cx+65+bend*0.3,cy-65+bend*0.2],
+      lWrist:[cx-55,cy-20-bend*0.3], rWrist:[cx+55,cy-20-bend*0.3],
+      lHip:[cx-25,cy-10], rHip:[cx+25,cy-10],
+      lKnee:[cx-30,cy+75], rKnee:[cx+30,cy+75],
+      lAnkle:[cx-28,cy+148], rAnkle:[cx+28,cy+148] };
+  }
+
+  const bones = [
+    ['neck','lShoulder'],['neck','rShoulder'],
+    ['lShoulder','lElbow'],['lElbow','lWrist'],
+    ['rShoulder','rElbow'],['rElbow','rWrist'],
+    ['lShoulder','lHip'],['rShoulder','rHip'],['lHip','rHip'],
+    ['lHip','lKnee'],['lKnee','lAnkle'],
+    ['rHip','rKnee'],['rKnee','rAnkle']
+  ];
+
+  ctx.lineCap = 'round';
+  bones.forEach(([a, b]) => {
+    if (!kp[a] || !kp[b]) return;
+    ctx.beginPath();
+    ctx.moveTo(...kp[a]); ctx.lineTo(...kp[b]);
+    const isLeg = a.includes('Hip')||a.includes('Knee')||b.includes('Knee')||b.includes('Ankle');
+    ctx.strokeStyle = isLeg ? '#3b82f6' : '#00ff88';
+    ctx.lineWidth = 4; ctx.globalAlpha = 0.9; ctx.stroke();
+  });
+
+  Object.values(kp).forEach(([x, y]) => {
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = 1; ctx.fill();
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2; ctx.stroke();
+  });
+
+  if (kp.nose) {
+    ctx.beginPath(); ctx.arc(kp.nose[0], kp.nose[1], 20, 0, Math.PI*2);
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3; ctx.globalAlpha = 0.8; ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  if (exercise === 'squat' && kp.lKnee) {
+    const ang = Math.round(100 + phase * 80);
+    ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#ffaa00';
+    ctx.fillText(ang+'°', kp.lKnee[0]-40, kp.lKnee[1]);
+  }
+
+  ctx.font = 'bold 12px monospace';
+  ctx.fillStyle = 'rgba(0,255,136,0.9)';
+  ctx.fillText(phase > 0.55 ? 'CONCENTRIC ↑' : 'ECCENTRIC ↓', 12, 22);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '11px monospace';
+  ctx.fillText(`DEMO MODE  |  CONF: ${Math.round(85+phase*12)}%`, 12, H - 12);
+}
+
+// ========== SAFETY / CRITICAL LIMITS ==========
+function updateFatigue() {
+  const bar = document.getElementById('fatigue-bar');
+  const text = document.getElementById('fatigue-level-text');
+  const tip = document.getElementById('safety-tip');
+  const repEl = document.getElementById('rep-display');
+  const alert = document.getElementById('safety-alert');
+  
+  bar.style.width = fatigueLevel + '%';
+  
+  if (fatigueLevel < 30) {
+    text.textContent = 'Low';
+    text.style.color = 'var(--accent)';
+    tip.textContent = '✓ Your form is good. Keep going!';
+    alert.style.display = 'none';
+  } else if (fatigueLevel < 60) {
+    text.textContent = 'Moderate';
+    text.style.color = 'var(--warn)';
+    tip.textContent = '⚠ Take a 60-90s rest between sets';
+    alert.style.display = 'none';
+  } else if (fatigueLevel < 80) {
+    text.textContent = 'High';
+    text.style.color = 'var(--accent2)';
+    tip.textContent = '⚠ Rest 2-3 min. Consider reducing weight.';
+    alert.style.display = 'none';
+  } else {
+    text.textContent = '🚨 CRITICAL';
+    text.style.color = 'var(--danger)';
+    tip.textContent = '🚨 STOP! Risk of injury. Rest for 5+ minutes.';
+    alert.style.display = 'block';
+    alert.textContent = '⚠️ CRITICAL FATIGUE: Stop to prevent muscle tear! Rest now.';
+  }
+}
+
+function checkCriticalLimits() {
+  // Check max rep safety limits by level
+  const maxReps = { beginner: 20, intermediate: 30, advanced: 50 }[user.level];
+  if (reps > maxReps) {
+    showNotif(`⚠️ ${reps} reps is beyond safe limit for your level. Risk of injury!`, 'error');
+    document.getElementById('safety-alert').style.display = 'block';
+    document.getElementById('safety-alert').textContent = `⚠️ ${reps} reps exceeds recommended limit (${maxReps}). Stop and rest!`;
+  }
+}
+
+// ========== RECOMMENDATIONS ==========
+function updateRecommendation() {
+  const info = EXERCISES[currentExercise] || {};
+  const levelMultiplier = { beginner: 0.7, intermediate: 1.0, advanced: 1.3 }[user.level];
+  const recs = {
+    squat: { weight: Math.round(user.weight * 0.7 * levelMultiplier), reps: user.level === 'beginner' ? 8 : 12 },
+    deadlift: { weight: Math.round(user.weight * 1.0 * levelMultiplier), reps: user.level === 'beginner' ? 5 : 8 },
+    pushup: { weight: 0, reps: user.level === 'beginner' ? 10 : 15 },
+    plank: { weight: 0, time: user.level === 'beginner' ? 30 : user.level === 'intermediate' ? 60 : 120 },
+    bicep_curl: { weight: Math.round(user.weight * 0.15 * levelMultiplier), reps: 12 },
+    shoulder_press: { weight: Math.round(user.weight * 0.2 * levelMultiplier), reps: 10 },
+    default: { weight: Math.round(user.weight * 0.3 * levelMultiplier), reps: 12 }
+  };
+  
+  const rec = recs[currentExercise] || recs.default;
+  const ex = info.name || currentExercise;
+  
+  let html = `<strong>🤖 AI Recommendation for ${ex}</strong><br>`;
+  if (rec.weight > 0) html += `Weight: <strong>${rec.weight}kg</strong> for ${user.level}<br>`;
+  if (rec.time) html += `Hold time: <strong>${rec.time}s</strong> target<br>`;
+  if (rec.reps) html += `Reps: <strong>${rec.reps}</strong> per set<br>`;
+  html += `Rest: <strong>${user.level === 'beginner' ? 90 : user.level === 'intermediate' ? 75 : 60}s</strong> between sets`;
+  
+  document.getElementById('recommendation-card').innerHTML = html;
+}
+
+function updateDailyTargets() {
+  const targets = `
+    🔥 Calories: ${user.calorieTarget} kcal<br>
+    💪 Protein: ${user.proteinTarget}g<br>
+    🏋️ Workouts: ${user.level === 'beginner' ? 3 : user.level === 'intermediate' ? 4 : 5}x/week<br>
+    💧 Water: ${Math.round(user.weight * 0.035)}L/day<br>
+    😴 Sleep: 7-9 hours<br>
+    🚶 Steps: 8,000-10,000/day
+  `;
+  document.getElementById('daily-targets').innerHTML = targets;
+  
+  const program = user.level === 'beginner' 
+    ? `<strong>Beginner Full-Body (3x/week)</strong><br>
+       Mon: Squat 3×8, Push-up 3×10, Plank 3×30s<br>
+       Wed: Deadlift 3×6, Shoulder Press 3×8, Lunge 2×10<br>
+       Fri: Squat 3×10, Bicep Curl 3×12, Plank 3×45s<br><br>
+       <span style="color:var(--warn)">Add 2.5kg/session when you complete all reps</span>`
+    : user.level === 'intermediate'
+    ? `<strong>Intermediate PPL (4x/week)</strong><br>
+       Mon: Push (Chest, Shoulders, Triceps)<br>
+       Tue: Pull (Back, Biceps)<br>
+       Thu: Legs (Squat, Deadlift, Lunge)<br>
+       Sat: Full Body Conditioning`
+    : `<strong>Advanced Strength (5x/week)</strong><br>
+       Periodized training: Linear → Undulating<br>
+       Focus on compound movements with progression<br>
+       Include deload week every 4-6 weeks`;
+  
+  document.getElementById('recommended-program').innerHTML = program;
+}
+
+// ========== CHAT ==========
+const macroData = { cal: 0, prot: 0, carbs: 0, fats: 0 };
+
+function getMacros() {
+  return {
+    cal: macroData.cal, calTarget: user.calorieTarget,
+    prot: macroData.prot, protTarget: user.proteinTarget,
+    carbs: macroData.carbs, carbsTarget: user.carbsTarget,
+    fats: macroData.fats, fatsTarget: user.fatsTarget
+  };
+}
+
+function addBotMessage(html) {
+  const container = document.getElementById('chat-messages');
+  const msg = document.createElement('div');
+  msg.className = 'msg bot';
+  msg.innerHTML = html + `<div class="msg-time">${new Date().toLocaleTimeString()}</div>`;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addUserMessage(text) {
+  const container = document.getElementById('chat-messages');
+  const msg = document.createElement('div');
+  msg.className = 'msg user';
+  msg.textContent = text;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showTyping() {
+  const container = document.getElementById('chat-messages');
+  const el = document.createElement('div');
+  el.className = 'typing-indicator';
+  el.id = 'typing';
+  el.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing');
+  if (el) el.remove();
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  
+  input.value = '';
+  input.style.height = 'auto';
+  addUserMessage(text);
+  showTyping();
+  
+  // AIML local KB first
+  const localAnswer = findBestAIMLAnswer(text);
+  
+  // Simulate AI typing delay
+  await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+  hideTyping();
+  
+  if (localAnswer) {
+    addBotMessage(localAnswer);
+    return;
+  }
+  
+  // Fallback to Claude API
+  try {
+    const systemPrompt = `You are FitAI Coach, an expert fitness and nutrition AI assistant. You know the user's profile: Name: ${user.name}, Age: ${user.age}, Weight: ${user.weight}kg, Height: ${user.height}cm, Fitness Level: ${user.level}, Goal: ${user.goal}. Always give specific, actionable advice tailored to their profile. Be concise but comprehensive. Use HTML for formatting when helpful.`;
+    
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+    
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    const answer = data.content?.[0]?.text || 'I encountered an issue. Please try again.';
+    addBotMessage(answer);
+  } catch (e) {
+    // Intelligent fallback
+    addBotMessage(`Great question! As your FitAI coach, here's my advice based on your ${user.level} level and ${user.goal} goal:<br><br>
+    Focus on progressive overload — consistently adding weight or reps to challenge your muscles. At ${user.weight}kg bodyweight, your training should prioritize compound movements. 
+    Keep protein high (${Math.round(user.weight * 1.8)}g+ per day) and get 7-9 hours sleep. Consistency beats perfection every time! 💪<br><br>
+    <em style="color:var(--muted);font-size:0.8rem">Ask me more specific questions for detailed advice.</em>`);
+  }
+}
+
+function quickAsk(question) {
+  document.getElementById('chat-input').value = question;
+  sendChat();
+}
+
+// ========== MACRO LOGGING ==========
+const foodDB = {
+  'egg': { cal: 78, prot: 6, carbs: 1, fats: 5 },
+  'eggs': { cal: 78, prot: 6, carbs: 1, fats: 5 },
+  'chicken': { cal: 165, prot: 31, carbs: 0, fats: 4 },
+  'rice': { cal: 206, prot: 4, carbs: 45, fats: 0 },
+  'oats': { cal: 150, prot: 5, carbs: 27, fats: 3 },
+  'banana': { cal: 105, prot: 1, carbs: 27, fats: 0 },
+  'milk': { cal: 149, prot: 8, carbs: 12, fats: 8 },
+  'whey': { cal: 120, prot: 25, carbs: 3, fats: 2 },
+  'protein shake': { cal: 120, prot: 25, carbs: 3, fats: 2 },
+  'bread': { cal: 80, prot: 3, carbs: 15, fats: 1 },
+  'salad': { cal: 50, prot: 3, carbs: 8, fats: 1 },
+  'steak': { cal: 280, prot: 26, carbs: 0, fats: 19 },
+  'fish': { cal: 140, prot: 28, carbs: 0, fats: 3 },
+  'apple': { cal: 95, prot: 0, carbs: 25, fats: 0 },
+  'yogurt': { cal: 130, prot: 12, carbs: 14, fats: 4 },
+};
+
+function logFood() {
+  const input = document.getElementById('food-input').value.toLowerCase().trim();
+  if (!input) return;
+  
+  let found = false;
+  let multiplier = 1;
+  
+  // Extract quantity
+  const numMatch = input.match(/^(\d+(?:\.\d+)?)\s*/);
+  if (numMatch) multiplier = parseFloat(numMatch[1]);
+  
+  for (const [food, macros] of Object.entries(foodDB)) {
+    if (input.includes(food)) {
+      macroData.cal += Math.round(macros.cal * multiplier);
+      macroData.prot += Math.round(macros.prot * multiplier);
+      macroData.carbs += Math.round(macros.carbs * multiplier);
+      macroData.fats += Math.round(macros.fats * multiplier);
+      found = true;
+      showNotif(`Logged: ${multiplier > 1 ? multiplier + 'x ' : ''}${food} (${Math.round(macros.cal * multiplier)} cal)`, 'success');
+      break;
+    }
+  }
+  
+  if (!found) {
+    // Estimate
+    macroData.cal += 200;
+    macroData.prot += 10;
+    macroData.carbs += 25;
+    macroData.fats += 8;
+    showNotif(`Estimated macros logged for: ${input}`, 'warning');
+  }
+  
+  updateMacroDisplay();
+  document.getElementById('food-input').value = '';
+}
+
+function updateMacroDisplay() {
+  const update = (id, val, target, unit='') => {
+    const el = document.getElementById(id);
+    el.textContent = val + unit + ' / ';
+    el.className = 'macro-val ' + (val > target * 1.05 ? 'over' : 'ok');
+  };
+  
+  document.getElementById('mac-cal').innerHTML = `${macroData.cal} / <span id="mac-cal-target">${user.calorieTarget}</span>`;
+  document.getElementById('mac-prot').innerHTML = `${macroData.prot}g / <span id="mac-prot-target">${user.proteinTarget}g</span>`;
+  document.getElementById('mac-carbs').innerHTML = `${macroData.carbs}g / <span id="mac-carbs-target">${user.carbsTarget}g</span>`;
+  document.getElementById('mac-fats').innerHTML = `${macroData.fats}g / <span id="mac-fats-target">${user.fatsTarget}g</span>`;
+  
+  // Color
+  const colorMacro = (id, val, target) => {
+    document.getElementById(id).className = 'macro-val ' + (val > target * 1.05 ? 'over' : 'ok');
+  };
+  colorMacro('mac-cal', macroData.cal, user.calorieTarget);
+  colorMacro('mac-prot', macroData.prot, user.proteinTarget);
+}
+
+function updateTodaySummary() {
+  const today = new Date().toLocaleDateString();
+  const todayLog = workoutLog.filter(e => e.date === today);
+  if (todayLog.length === 0) {
+    document.getElementById('today-summary').textContent = 'No exercises logged today.';
+    return;
+  }
+  const grouped = {};
+  todayLog.forEach(e => {
+    if (!grouped[e.exercise]) grouped[e.exercise] = 0;
+    grouped[e.exercise]++;
+  });
+  document.getElementById('today-summary').innerHTML = Object.entries(grouped)
+    .map(([ex, sets]) => `${ex}: ${sets} set${sets > 1 ? 's' : ''}`)
+    .join('<br>');
+}
+
+// ========== DASHBOARD ==========
+function updateDashboard() {
+  const today = new Date().toLocaleDateString();
+  const todayLog = workoutLog.filter(e => e.date === today);
+  const totalReps = workoutLog.reduce((sum, e) => sum + (typeof e.reps === 'number' ? e.reps : 0), 0);
+  
+  document.getElementById('kpi-workouts').textContent = Math.ceil(workoutLog.length / 3) || 0;
+  document.getElementById('kpi-sets').textContent = workoutLog.length;
+  document.getElementById('kpi-reps').textContent = totalReps;
+  document.getElementById('kpi-streak').textContent = (user.streak || 0) + 'd';
+  document.getElementById('prof-workouts').textContent = Math.ceil(workoutLog.length / 3) || 0;
+  document.getElementById('prof-streak').textContent = user.streak || 0;
+}
+
+function renderWorkoutLog() {
+  const container = document.getElementById('workout-log-entries');
+  if (workoutLog.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:20px">No workouts logged yet. Start training!</div>';
+    return;
+  }
+  
+  const recent = workoutLog.slice(-10).reverse();
+  container.innerHTML = recent.map(e => `
+    <div class="log-entry">
+      <div>
+        <div class="log-exercise">${e.exercise}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">${e.muscle} · ${e.date} ${e.timestamp}</div>
+      </div>
+      <div class="log-detail">${e.reps} reps</div>
+      <div class="log-detail">${e.weight ? e.weight + 'kg' : 'BW'}</div>
+      <span class="log-badge done">Done</span>
+    </div>
+  `).join('');
+}
+
+function clearWorkoutLog() {
+  workoutLog = [];
+  localStorage.setItem('fitai_log', '[]');
+  renderWorkoutLog();
+  updateDashboard();
+  showNotif('Workout log cleared', 'success');
+}
+
+// ========== CHARTS ==========
+function initCharts() {
+  const defaults = {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#6b6b80', font: { size: 11 } } } }
+  };
+  
+  // Volume chart
+  const vCtx = document.getElementById('volumeChart').getContext('2d');
+  charts.volume = new Chart(vCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      datasets: [{
+        label: 'Reps',
+        data: [0, 0, 0, 0, 0, 0, 0],
+        backgroundColor: 'rgba(0,255,136,0.4)',
+        borderColor: '#00ff88',
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    },
+    options: { ...defaults, scales: {
+      x: { ticks: { color: '#6b6b80' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y: { ticks: { color: '#6b6b80' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }}
+  });
+  
+  // Muscle groups
+  const mCtx = document.getElementById('muscleChart').getContext('2d');
+  charts.muscle = new Chart(mCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Legs', 'Chest', 'Back', 'Arms', 'Core', 'Shoulders'],
+      datasets: [{
+        data: [30, 20, 25, 10, 10, 5],
+        backgroundColor: ['#00ff88','#3b82f6','#ff3b6b','#ffaa00','#8b5cf6','#06b6d4'],
+        borderWidth: 0
+      }]
+    },
+    options: { ...defaults, cutout: '65%' }
+  });
+  
+  // Weight progression
+  const wCtx = document.getElementById('weightChart').getContext('2d');
+  charts.weight = new Chart(wCtx, {
+    type: 'line',
+    data: {
+      labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'],
+      datasets: [{
+        label: 'Squat (kg)',
+        data: [40, 45, 47.5, 50, 52.5, 55],
+        borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.1)',
+        tension: 0.4, fill: true, pointBackgroundColor: '#00ff88'
+      }, {
+        label: 'Deadlift (kg)',
+        data: [60, 65, 70, 75, 77.5, 80],
+        borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
+        tension: 0.4, fill: true, pointBackgroundColor: '#3b82f6'
+      }]
+    },
+    options: { ...defaults, scales: {
+      x: { ticks: { color: '#6b6b80' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y: { ticks: { color: '#6b6b80' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }}
+  });
+  
+  // Macro trends
+  const macCtx = document.getElementById('macroChart').getContext('2d');
+  charts.macro = new Chart(macCtx, {
+    type: 'line',
+    data: {
+      labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+      datasets: [{
+        label: 'Calories',
+        data: [2100, 2300, 1950, 2200, 2400, 2150, 2200],
+        borderColor: '#ffaa00', tension: 0.4,
+        backgroundColor: 'rgba(255,170,0,0.1)', fill: true,
+        pointBackgroundColor: '#ffaa00'
+      }, {
+        label: 'Protein (g×10)',
+        data: [1500, 1700, 1400, 1600, 1800, 1550, 1600],
+        borderColor: '#00ff88', tension: 0.4,
+        backgroundColor: 'transparent',
+        pointBackgroundColor: '#00ff88'
+      }]
+    },
+    options: { ...defaults, scales: {
+      x: { ticks: { color: '#6b6b80' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y: { ticks: { color: '#6b6b80' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }}
+  });
+}
+
+function updateCharts() {
+  // Update volume chart with real data
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const now = new Date();
+  const dayReps = Array(7).fill(0);
+  
+  workoutLog.forEach(e => {
+    const d = new Date(e.date);
+    const diff = Math.round((now - d) / (1000*60*60*24));
+    if (diff < 7) {
+      const dayIdx = (6 - diff + new Date().getDay()) % 7;
+      dayReps[Math.min(6, Math.max(0, 6 - diff))] += (typeof e.reps === 'number' ? e.reps : 0);
+    }
+  });
+  
+  if (charts.volume) charts.volume.data.datasets[0].data = dayReps, charts.volume.update();
+  
+  // Update muscle chart
+  const muscles = {};
+  workoutLog.forEach(e => { muscles[e.muscle] = (muscles[e.muscle] || 0) + 1; });
+  if (Object.keys(muscles).length > 0 && charts.muscle) {
+    charts.muscle.data.labels = Object.keys(muscles);
+    charts.muscle.data.datasets[0].data = Object.values(muscles);
+    charts.muscle.update();
+  }
+}
+
+// ========== PROFILE SAVE ==========
+function saveProfile() {
+  user.name = document.getElementById('prof-edit-name').value || user.name;
+  user.age = parseInt(document.getElementById('prof-edit-age').value) || user.age;
+  user.weight = parseFloat(document.getElementById('prof-edit-weight').value) || user.weight;
+  user.height = parseFloat(document.getElementById('prof-edit-height').value) || user.height;
+  user.level = document.getElementById('prof-edit-level').value;
+  user.goal = document.getElementById('prof-edit-goal').value;
+  user.calorieTarget = parseInt(document.getElementById('prof-edit-calories').value) || user.calorieTarget;
+  user.proteinTarget = parseInt(document.getElementById('prof-edit-protein').value) || user.proteinTarget;
+  user.injuries = document.getElementById('prof-edit-injuries').value;
+  
+  saveUser();
+  initUI();
+  showNotif('Profile saved successfully!', 'success');
+}
+
+// ========== NOTIFICATIONS ==========
+function showNotif(msg, type = 'success') {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.className = `notification show ${type}`;
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ========== INIT ==========
+// Check for returning user
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('fitai_user');
+  if (saved) {
+    try {
+      user = JSON.parse(saved);
+      // Don't auto-login, let them log in again for security
+    } catch(e) {}
+  }
+});
+</script>
+</body>
+</html>
