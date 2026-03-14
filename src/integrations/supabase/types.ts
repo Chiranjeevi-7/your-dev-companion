@@ -14,7 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          age: number | null
+          calorie_target: number | null
+          carbs_target: number | null
+          created_at: string
+          fats_target: number | null
+          fitness_level: string | null
+          goal: string | null
+          height: number | null
+          id: string
+          injuries: string | null
+          name: string
+          protein_target: number | null
+          streak: number | null
+          updated_at: string
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          age?: number | null
+          calorie_target?: number | null
+          carbs_target?: number | null
+          created_at?: string
+          fats_target?: number | null
+          fitness_level?: string | null
+          goal?: string | null
+          height?: number | null
+          id?: string
+          injuries?: string | null
+          name?: string
+          protein_target?: number | null
+          streak?: number | null
+          updated_at?: string
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          age?: number | null
+          calorie_target?: number | null
+          carbs_target?: number | null
+          created_at?: string
+          fats_target?: number | null
+          fitness_level?: string | null
+          goal?: string | null
+          height?: number | null
+          id?: string
+          injuries?: string | null
+          name?: string
+          protein_target?: number | null
+          streak?: number | null
+          updated_at?: string
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
+      workout_logs: {
+        Row: {
+          exercise: string
+          id: string
+          logged_at: string
+          muscle: string
+          reps: string
+          set_number: number | null
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          exercise: string
+          id?: string
+          logged_at?: string
+          muscle: string
+          reps: string
+          set_number?: number | null
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          exercise?: string
+          id?: string
+          logged_at?: string
+          muscle?: string
+          reps?: string
+          set_number?: number | null
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
