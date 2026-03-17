@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { EXERCISES } from "@/lib/exercises";
+import cameraSetupGuide from "@/assets/camera-setup-guide.png";
 
 interface PoseCanvasProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
