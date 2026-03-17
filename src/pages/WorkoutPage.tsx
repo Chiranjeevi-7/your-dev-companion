@@ -24,6 +24,8 @@ export default function WorkoutPage() {
   const [feedback, setFeedback] = useState("Start a set to receive real-time posture corrections...");
   const [feedbackType, setFeedbackType] = useState<"good" | "warning" | "error">("good");
   const [lastPhase, setLastPhase] = useState<"up" | "down" | "neutral">("neutral");
+  const phaseFrameCount = useRef(0);
+  const stablePhase = useRef<"up" | "down" | "neutral">("neutral");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);

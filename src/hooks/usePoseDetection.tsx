@@ -109,7 +109,7 @@ export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, 
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw video frame
+    // Draw video frame (mirrored)
     ctx.save();
     ctx.scale(-1, 1);
     ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
@@ -117,33 +117,51 @@ export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, 
 
     if (result.landmarks && result.landmarks.length > 0) {
       const lm = result.landmarks[0];
-      setState(s => ({ ...s, landmarks: lm }));
 
-      // Draw skeleton
+      // Mirror landmarks to match the flipped video
+      const mirroredLm = lm.map((pt: any) => ({
+        ...pt,
+        x: 1 - pt.x,
+      }));
+
+      // Check landmark visibility — filter out low-confidence frames
+      const keyIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+      const avgVisibility = keyIndices.reduce((sum, i) => sum + (mirroredLm[i]?.visibility ?? 0), 0) / keyIndices.length;
+
+      if (avgVisibility > 0.5) {
+        setState(s => ({ ...s, landmarks: mirroredLm }));
+      } else {
+        // Low confidence — don't update landmarks (prevents glitch reps)
+        setState(s => ({ ...s, landmarks: null }));
+      }
+
+      // Draw skeleton with mirrored coordinates
       const drawingUtils = new DrawingUtils(ctx);
-      drawingUtils.drawLandmarks(lm, {
+      drawingUtils.drawLandmarks(mirroredLm, {
         radius: 4,
         color: "hsl(153, 100%, 50%)",
         fillColor: "hsl(153, 100%, 50%)",
       });
-      drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
+      drawingUtils.drawConnectors(mirroredLm, PoseLandmarker.POSE_CONNECTIONS, {
         color: "hsl(217, 91%, 60%)",
         lineWidth: 3,
       });
 
       // Draw angle labels
-      const angles = getJointAngles(lm);
-      if (angles) {
-        ctx.font = "bold 11px monospace";
-        ctx.fillStyle = "hsl(153, 100%, 50%)";
-        const drawAngle = (idx: number, angle: number, label: string) => {
-          const pt = lm[idx];
-          ctx.fillText(`${label}: ${Math.round(angle)}°`, pt.x * canvas.width + 8, pt.y * canvas.height - 4);
-        };
-        drawAngle(25, angles.leftKnee, "L.Knee");
-        drawAngle(26, angles.rightKnee, "R.Knee");
-        drawAngle(13, angles.leftElbow, "L.Elbow");
-        drawAngle(14, angles.rightElbow, "R.Elbow");
+      if (avgVisibility > 0.5) {
+        const angles = getJointAngles(mirroredLm);
+        if (angles) {
+          ctx.font = "bold 11px monospace";
+          ctx.fillStyle = "hsl(153, 100%, 50%)";
+          const drawAngle = (idx: number, angle: number, label: string) => {
+            const pt = mirroredLm[idx];
+            ctx.fillText(`${label}: ${Math.round(angle)}°`, pt.x * canvas.width + 8, pt.y * canvas.height - 4);
+          };
+          drawAngle(25, angles.leftKnee, "L.Knee");
+          drawAngle(26, angles.rightKnee, "R.Knee");
+          drawAngle(13, angles.leftElbow, "L.Elbow");
+          drawAngle(14, angles.rightElbow, "R.Elbow");
+        }
       }
     } else {
       setState(s => ({ ...s, landmarks: null }));
