@@ -23,6 +23,8 @@ export default function PoseCanvas({
   feedback, feedbackType, fps, error,
 }: PoseCanvasProps) {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const info = EXERCISES[exercise];
+  const cam = info.camera;
 
   const feedbackBg = feedbackType === "good"
     ? "bg-primary/10 border-primary/20"
