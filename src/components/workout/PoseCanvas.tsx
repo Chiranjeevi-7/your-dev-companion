@@ -23,6 +23,8 @@ export default function PoseCanvas({
   feedback, feedbackType, fps, error,
 }: PoseCanvasProps) {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const info = EXERCISES[exercise];
+  const cam = info.camera;
 
   const feedbackBg = feedbackType === "good"
     ? "bg-primary/10 border-primary/20"
@@ -59,20 +61,30 @@ export default function PoseCanvas({
       {showSetupGuide && (
         <div className="p-4 border-b border-border bg-secondary/50">
           <div className="flex flex-col md:flex-row gap-4 items-start">
-            <img src={cameraSetupGuide} alt="Camera setup guide showing optimal distance of 6-8 feet"
+            <img src={cameraSetupGuide} alt="Camera setup guide showing optimal positioning"
               className="w-full md:w-56 rounded-lg border border-border" />
             <div className="flex-1 space-y-2 text-sm">
-              <h3 className="font-semibold text-foreground text-base">📐 Camera Placement Guide</h3>
+              <h3 className="font-semibold text-foreground text-base">
+                📐 Camera Setup for <span className="text-primary">{info.name}</span>
+              </h3>
+              <div className="rounded-lg bg-primary/5 border border-primary/15 p-2.5 text-xs text-muted-foreground leading-relaxed">
+                💡 {cam.tip}
+              </div>
               <ul className="space-y-1.5 text-muted-foreground">
-                <li>📏 <strong className="text-foreground">Distance:</strong> Stand <strong className="text-primary">6–8 ft (2–2.5m)</strong> from the camera</li>
-                <li>📷 <strong className="text-foreground">Angle:</strong> Camera at <strong className="text-primary">waist height</strong>, pointing straight at you</li>
-                <li>🧍 <strong className="text-foreground">Framing:</strong> Your <strong className="text-primary">full body</strong> (head to feet) must be visible</li>
-                <li>💡 <strong className="text-foreground">Lighting:</strong> Face a light source — avoid backlight or shadows</li>
-                <li>👕 <strong className="text-foreground">Clothing:</strong> Fitted clothes help the AI track joints better</li>
+                <li>📷 <strong className="text-foreground">View Angle:</strong>{" "}
+                  <strong className="text-primary">
+                    {cam.angle === "side" ? "Side-on (profile)" : cam.angle === "front" ? "Front-facing" : "45° Diagonal"}
+                  </strong>
+                </li>
+                <li>📏 <strong className="text-foreground">Distance:</strong>{" "}
+                  <strong className="text-primary">{cam.distance}</strong>
+                </li>
+                <li>⬆️ <strong className="text-foreground">Camera Height:</strong>{" "}
+                  <strong className="text-primary">{cam.height}</strong>
+                </li>
+                <li>🧍 <strong className="text-foreground">Framing:</strong> Full body (head to feet) must be visible</li>
+                <li>💡 <strong className="text-foreground">Lighting:</strong> Face a light source — avoid backlight</li>
               </ul>
-              <p className="text-xs text-muted-foreground/70 pt-1">
-                ⚡ For best accuracy: side-on view for squats/deadlifts, front view for curls/presses
-              </p>
             </div>
           </div>
         </div>
