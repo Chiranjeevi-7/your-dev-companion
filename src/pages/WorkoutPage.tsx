@@ -24,6 +24,8 @@ export default function WorkoutPage() {
   const [feedback, setFeedback] = useState("Start a set to receive real-time posture corrections...");
   const [feedbackType, setFeedbackType] = useState<"good" | "warning" | "error">("good");
   const [lastPhase, setLastPhase] = useState<"up" | "down" | "neutral">("neutral");
+  const phaseFrameCount = useRef(0);
+  const stablePhase = useRef<"up" | "down" | "neutral">("neutral");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,14 +59,25 @@ export default function WorkoutPage() {
     setFeedback(check.message);
     setFeedbackType(check.type);
 
-    // Rep counting (not for timed exercises)
+    // Rep counting with stability filter (not for timed exercises)
     if (!isTimed) {
       const phase = detectRepPhase(exercise, angles);
-      if (lastPhase === "down" && phase === "up") {
-        setReps(r => r + 1);
-        setFatigue(f => Math.min(100, f + 3));
+      if (phase !== "neutral") {
+        if (phase === stablePhase.current) {
+          phaseFrameCount.current++;
+        } else {
+          stablePhase.current = phase;
+          phaseFrameCount.current = 1;
+        }
+        // Require 3 consecutive frames in same phase to confirm
+        if (phaseFrameCount.current >= 3) {
+          if (lastPhase === "down" && phase === "up") {
+            setReps(r => r + 1);
+            setFatigue(f => Math.min(100, f + 3));
+          }
+          if (phase !== lastPhase) setLastPhase(phase);
+        }
       }
-      if (phase !== "neutral") setLastPhase(phase);
     }
   }, [pose.landmarks, exercise, isTimed, lastPhase]);
 
