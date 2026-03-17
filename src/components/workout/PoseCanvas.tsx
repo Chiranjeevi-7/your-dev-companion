@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { EXERCISES } from "@/lib/exercises";
+import cameraSetupGuide from "@/assets/camera-setup-guide.png";
 
 interface PoseCanvasProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
@@ -20,6 +22,8 @@ export default function PoseCanvas({
   isWebcamActive, isModelLoaded, onToggleCamera,
   feedback, feedbackType, fps, error,
 }: PoseCanvasProps) {
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+
   const feedbackBg = feedbackType === "good"
     ? "bg-primary/10 border-primary/20"
     : feedbackType === "warning"
@@ -36,6 +40,10 @@ export default function PoseCanvas({
           )}
         </h2>
         <div className="flex gap-2">
+          <button onClick={() => setShowSetupGuide(g => !g)}
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-secondary text-secondary-foreground hover:opacity-80 transition-all">
+            📐 Setup Guide
+          </button>
           <button onClick={onToggleCamera}
             className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
               isWebcamActive
@@ -46,6 +54,29 @@ export default function PoseCanvas({
           </button>
         </div>
       </div>
+
+      {/* Camera Setup Guide */}
+      {showSetupGuide && (
+        <div className="p-4 border-b border-border bg-secondary/50">
+          <div className="flex flex-col md:flex-row gap-4 items-start">
+            <img src={cameraSetupGuide} alt="Camera setup guide showing optimal distance of 6-8 feet"
+              className="w-full md:w-56 rounded-lg border border-border" />
+            <div className="flex-1 space-y-2 text-sm">
+              <h3 className="font-semibold text-foreground text-base">📐 Camera Placement Guide</h3>
+              <ul className="space-y-1.5 text-muted-foreground">
+                <li>📏 <strong className="text-foreground">Distance:</strong> Stand <strong className="text-primary">6–8 ft (2–2.5m)</strong> from the camera</li>
+                <li>📷 <strong className="text-foreground">Angle:</strong> Camera at <strong className="text-primary">waist height</strong>, pointing straight at you</li>
+                <li>🧍 <strong className="text-foreground">Framing:</strong> Your <strong className="text-primary">full body</strong> (head to feet) must be visible</li>
+                <li>💡 <strong className="text-foreground">Lighting:</strong> Face a light source — avoid backlight or shadows</li>
+                <li>👕 <strong className="text-foreground">Clothing:</strong> Fitted clothes help the AI track joints better</li>
+              </ul>
+              <p className="text-xs text-muted-foreground/70 pt-1">
+                ⚡ For best accuracy: side-on view for squats/deadlifts, front view for curls/presses
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2.5 items-center p-3.5 border-b border-border bg-secondary flex-wrap">
         <select value={exercise} onChange={e => onChangeExercise(e.target.value)}
@@ -66,7 +97,7 @@ export default function PoseCanvas({
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm z-10">
             <span className="text-5xl">🎥</span>
             <span>Click <strong>"Load AI + Camera"</strong> to start BlazePose detection</span>
-            <span className="text-xs text-muted-foreground/60">33 keypoints • Real-time joint angles • Auto rep counting</span>
+            <span className="text-xs text-muted-foreground/60">Stand 6–8 ft away • Full body in frame • Good lighting</span>
           </div>
         )}
         {isWebcamActive && (
