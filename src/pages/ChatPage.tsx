@@ -2,18 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { useProfile } from "@/hooks/useProfile";
 import { useWorkoutLogs } from "@/hooks/useWorkoutLogs";
 import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
 type Message = { role: "assistant" | "user"; content: string; time: string };
 
-const OLLAMA_BASE = "https://0e3b8c7167324e.lhr.life/v1";
-const OLLAMA_MODEL = "phi4-mini";
-const OLLAMA_KEY = "ollama";
-
-const SYSTEM_PROMPT = `You are FitCoach Pro — a friendly personal trainer. 
-Use the user's Supabase profile and workout logs when available.
-Give safe, practical fitness advice. 
-Always say "consult a doctor" for injuries or health questions.
-Be encouraging.`;
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const QUICK_QUESTIONS = [
   "How much protein do I need?",
@@ -26,7 +19,7 @@ const QUICK_QUESTIONS = [
 function buildContext(profile: any, logs: any[]) {
   let ctx = "";
   if (profile) {
-    ctx += `\n\nUser Profile:\n- Name: ${profile.name}\n- Age: ${profile.age ?? "unknown"}\n- Weight: ${profile.weight ?? "unknown"}kg\n- Height: ${profile.height ?? "unknown"}cm\n- Fitness Level: ${profile.fitness_level}\n- Goal: ${profile.goal}\n- Calorie Target: ${profile.calorie_target}\n- Protein Target: ${profile.protein_target}g\n- Injuries: ${profile.injuries || "none"}\n- Streak: ${profile.streak} days`;
+    ctx += `User Profile:\n- Name: ${profile.name}\n- Age: ${profile.age ?? "unknown"}\n- Weight: ${profile.weight ?? "unknown"}kg\n- Height: ${profile.height ?? "unknown"}cm\n- Fitness Level: ${profile.fitness_level}\n- Goal: ${profile.goal}\n- Calorie Target: ${profile.calorie_target}\n- Protein Target: ${profile.protein_target}g\n- Injuries: ${profile.injuries || "none"}\n- Streak: ${profile.streak} days`;
   }
   if (logs?.length) {
     const recent = logs.slice(0, 20);
@@ -62,58 +55,89 @@ export default function ChatPage() {
     setStreaming(true);
 
     const contextInfo = buildContext(profile, logs || []);
-    const apiMessages = [
-      { role: "system", content: SYSTEM_PROMPT + contextInfo },
-      ...newMessages.map(m => ({ role: m.role, content: m.content })),
-    ];
+    const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }));
 
-    const botMsg: Message = { role: "assistant", content: "", time: new Date().toLocaleTimeString() };
+    let assistantContent = "";
 
     try {
       abortRef.current = new AbortController();
-      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
+      const res = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${OLLAMA_KEY}`,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ model: OLLAMA_MODEL, messages: apiMessages, stream: true }),
+        body: JSON.stringify({ messages: apiMessages, context: contextInfo }),
         signal: abortRef.current.signal,
       });
 
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 429) {
+          toast.error("Rate limit exceeded. Please wait a moment and try again.");
+        } else if (res.status === 402) {
+          toast.error("AI credits exhausted. Please add funds in Settings.");
+        }
+        throw new Error(errData.error || `API error: ${res.status}`);
       }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
+      let textBuffer = "";
+
+      const upsert = (content: string) => {
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "assistant") {
+            return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content } : m));
+          }
+          return [...prev, { role: "assistant", content, time: new Date().toLocaleTimeString() }];
+        });
+      };
 
       while (reader) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n").filter(l => l.startsWith("data: "));
+        textBuffer += decoder.decode(value, { stream: true });
 
-        for (const line of lines) {
-          const data = line.slice(6);
-          if (data === "[DONE]") break;
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+
           try {
-            const parsed = JSON.parse(data);
+            const parsed = JSON.parse(jsonStr);
             const delta = parsed.choices?.[0]?.delta?.content || "";
-            accumulated += delta;
-            setMessages([...newMessages, { ...botMsg, content: accumulated }]);
-          } catch {}
+            if (delta) {
+              assistantContent += delta;
+              upsert(assistantContent);
+            }
+          } catch {
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
         }
       }
 
-      if (!accumulated) {
-        accumulated = "Sorry, I couldn't generate a response. Please try again.";
+      if (!assistantContent) {
+        assistantContent = "Sorry, I couldn't generate a response. Please try again.";
+        upsert(assistantContent);
       }
-      setMessages([...newMessages, { ...botMsg, content: accumulated }]);
     } catch (err: any) {
       if (err.name !== "AbortError") {
-        setMessages([...newMessages, { ...botMsg, content: `⚠️ Connection error: ${err.message}. Make sure Ollama is running.` }]);
+        if (!assistantContent) {
+          setMessages([...newMessages, {
+            role: "assistant",
+            content: `⚠️ ${err.message || "Connection error. Please try again."}`,
+            time: new Date().toLocaleTimeString(),
+          }]);
+        }
       }
     } finally {
       setStreaming(false);
@@ -139,7 +163,7 @@ export default function ChatPage() {
           </div>
           <div className="border-t border-border pt-4">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Model Info</h3>
-            <p className="text-xs text-muted-foreground">🧠 phi4-mini via Ollama</p>
+            <p className="text-xs text-muted-foreground">🧠 AI-Powered Coach</p>
             <p className="text-xs text-muted-foreground mt-1">📡 Streaming enabled</p>
           </div>
         </div>
@@ -150,7 +174,7 @@ export default function ChatPage() {
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-info flex items-center justify-center text-lg">🤖</div>
             <div>
               <h3 className="text-sm font-medium">FitCoach Pro</h3>
-              <div className="text-xs text-primary">● phi4-mini • Streaming</div>
+              <div className="text-xs text-primary">● AI-Powered • Streaming</div>
             </div>
           </div>
 
@@ -159,7 +183,7 @@ export default function ChatPage() {
               <div className="text-center text-muted-foreground text-sm py-12">
                 <p className="text-3xl mb-3">💪</p>
                 <p className="font-medium">Welcome to FitCoach Pro</p>
-                <p className="text-xs mt-1">Powered by phi4-mini • Ask me anything about fitness</p>
+                <p className="text-xs mt-1">AI-Powered Coach • Ask me anything about fitness</p>
               </div>
             )}
             {messages.map((msg, i) => (
