@@ -5,25 +5,15 @@ import ReactMarkdown from "react-markdown";
 
 type Message = { role: "assistant" | "user"; content: string; time: string };
 
-const OLLAMA_BASE = "https://6772fcc3ba724c.lhr.life/v1";
+const OLLAMA_BASE = "https://0e3b8c7167324e.lhr.life/v1";
 const OLLAMA_MODEL = "phi4-mini";
 const OLLAMA_KEY = "ollama";
 
-const SYSTEM_PROMPT = `You are FitCoach Pro — an expert but friendly personal trainer inside FitAI Pro.
-
-You have access to the user's profile (age, weight, height, fitness level, goals) and past workout_logs from Supabase.
-
-Always greet the user and briefly summarize their profile or goals if available.
-
-Create personalized workout plans, give form feedback, nutrition tips, recovery advice, and answer any fitness questions.
-
-Use progressive overload. Keep programs realistic and safe.
-
-Be encouraging but honest.
-
-Always say "consult a doctor" for any injury, pain, or health-related questions.
-
-Support streaming responses.`;
+const SYSTEM_PROMPT = `You are FitCoach Pro — a friendly personal trainer. 
+Use the user's Supabase profile and workout logs when available.
+Give safe, practical fitness advice. 
+Always say "consult a doctor" for injuries or health questions.
+Be encouraging.`;
 
 const QUICK_QUESTIONS = [
   "How much protein do I need?",
