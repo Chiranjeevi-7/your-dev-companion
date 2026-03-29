@@ -1,50 +1,134 @@
 import { useState, useRef, useEffect } from "react";
 import { useProfile } from "@/hooks/useProfile";
+import { useWorkoutLogs } from "@/hooks/useWorkoutLogs";
+import ReactMarkdown from "react-markdown";
 
-type Message = { role: "bot" | "user"; text: string; time: string };
+type Message = { role: "assistant" | "user"; content: string; time: string };
+
+const OLLAMA_BASE = "https://6772fcc3ba724c.lhr.life/v1";
+const OLLAMA_MODEL = "phi4-mini";
+const OLLAMA_KEY = "ollama";
+
+const SYSTEM_PROMPT = `You are FitCoach Pro — an expert but friendly personal trainer inside FitAI Pro.
+
+You have access to the user's profile (age, weight, height, fitness level, goals) and past workout_logs from Supabase.
+
+Always greet the user and briefly summarize their profile or goals if available.
+
+Create personalized workout plans, give form feedback, nutrition tips, recovery advice, and answer any fitness questions.
+
+Use progressive overload. Keep programs realistic and safe.
+
+Be encouraging but honest.
+
+Always say "consult a doctor" for any injury, pain, or health-related questions.
+
+Support streaming responses.`;
 
 const QUICK_QUESTIONS = [
   "How much protein do I need?",
   "Best exercise for fat loss?",
   "How to improve my squat form?",
   "What should I eat pre-workout?",
-  "How many rest days do I need?",
+  "Create a workout plan for me",
 ];
+
+function buildContext(profile: any, logs: any[]) {
+  let ctx = "";
+  if (profile) {
+    ctx += `\n\nUser Profile:\n- Name: ${profile.name}\n- Age: ${profile.age ?? "unknown"}\n- Weight: ${profile.weight ?? "unknown"}kg\n- Height: ${profile.height ?? "unknown"}cm\n- Fitness Level: ${profile.fitness_level}\n- Goal: ${profile.goal}\n- Calorie Target: ${profile.calorie_target}\n- Protein Target: ${profile.protein_target}g\n- Injuries: ${profile.injuries || "none"}\n- Streak: ${profile.streak} days`;
+  }
+  if (logs?.length) {
+    const recent = logs.slice(0, 20);
+    ctx += `\n\nRecent Workout Logs (last ${recent.length}):\n`;
+    recent.forEach(l => {
+      ctx += `- ${l.exercise} (${l.muscle}): ${l.reps} reps × ${l.weight}kg, set ${l.set_number} on ${new Date(l.logged_at).toLocaleDateString()}\n`;
+    });
+  }
+  return ctx;
+}
 
 export default function ChatPage() {
   const { data: profile } = useProfile();
+  const { data: logs } = useWorkoutLogs();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (profile && messages.length === 0) {
-      setMessages([{
-        role: "bot",
-        text: `Hey ${(profile.name || "User").split(" ")[0]}! 💪 I'm your FitAI coach. I know you're ${profile.age || "?"}y/o, ${profile.weight || "?"}kg, goal: <strong>${profile.goal}</strong>. Ready to crush today's session? Ask me anything!`,
-        time: new Date().toLocaleTimeString(),
-      }]);
-    }
-  }, [profile]);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, typing]);
+  }, [messages, streaming]);
 
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
-    if (!msg) return;
+    if (!msg || streaming) return;
     setInput("");
 
-    setMessages(m => [...m, { role: "user", text: msg, time: new Date().toLocaleTimeString() }]);
-    setTyping(true);
+    const userMsg: Message = { role: "user", content: msg, time: new Date().toLocaleTimeString() };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setStreaming(true);
 
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+    const contextInfo = buildContext(profile, logs || []);
+    const apiMessages = [
+      { role: "system", content: SYSTEM_PROMPT + contextInfo },
+      ...newMessages.map(m => ({ role: m.role, content: m.content })),
+    ];
 
-    const answer = generateAnswer(msg, profile);
-    setTyping(false);
-    setMessages(m => [...m, { role: "bot", text: answer, time: new Date().toLocaleTimeString() }]);
+    const botMsg: Message = { role: "assistant", content: "", time: new Date().toLocaleTimeString() };
+
+    try {
+      abortRef.current = new AbortController();
+      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OLLAMA_KEY}`,
+        },
+        body: JSON.stringify({ model: OLLAMA_MODEL, messages: apiMessages, stream: true }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(l => l.startsWith("data: "));
+
+        for (const line of lines) {
+          const data = line.slice(6);
+          if (data === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content || "";
+            accumulated += delta;
+            setMessages([...newMessages, { ...botMsg, content: accumulated }]);
+          } catch {}
+        }
+      }
+
+      if (!accumulated) {
+        accumulated = "Sorry, I couldn't generate a response. Please try again.";
+      }
+      setMessages([...newMessages, { ...botMsg, content: accumulated }]);
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        setMessages([...newMessages, { ...botMsg, content: `⚠️ Connection error: ${err.message}. Make sure Ollama is running.` }]);
+      }
+    } finally {
+      setStreaming(false);
+      abortRef.current = null;
+    }
   };
 
   return (
@@ -63,6 +147,11 @@ export default function ChatPage() {
               ))}
             </div>
           </div>
+          <div className="border-t border-border pt-4">
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Model Info</h3>
+            <p className="text-xs text-muted-foreground">🧠 phi4-mini via Ollama</p>
+            <p className="text-xs text-muted-foreground mt-1">📡 Streaming enabled</p>
+          </div>
         </div>
 
         {/* Chat main */}
@@ -70,23 +159,34 @@ export default function ChatPage() {
           <div className="p-4 border-b border-border flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-info flex items-center justify-center text-lg">🤖</div>
             <div>
-              <h3 className="text-sm font-medium">FitAI Coach</h3>
-              <div className="text-xs text-primary">● Online</div>
+              <h3 className="text-sm font-medium">FitCoach Pro</h3>
+              <div className="text-xs text-primary">● phi4-mini • Streaming</div>
             </div>
           </div>
 
           <div ref={chatRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-3.5">
+            {messages.length === 0 && (
+              <div className="text-center text-muted-foreground text-sm py-12">
+                <p className="text-3xl mb-3">💪</p>
+                <p className="font-medium">Welcome to FitCoach Pro</p>
+                <p className="text-xs mt-1">Powered by phi4-mini • Ask me anything about fitness</p>
+              </div>
+            )}
             {messages.map((msg, i) => (
-              <div key={i} className={`max-w-[72%] px-4 py-3 rounded-xl text-sm leading-relaxed animate-msg-in ${
-                msg.role === "bot"
+              <div key={i} className={`max-w-[78%] px-4 py-3 rounded-xl text-sm leading-relaxed ${
+                msg.role === "assistant"
                   ? "bg-secondary rounded-bl-sm self-start"
                   : "bg-gradient-to-br from-primary/15 to-info/15 border border-primary/20 rounded-br-sm self-end"
               }`}>
-                {msg.role === "bot" ? <span dangerouslySetInnerHTML={{ __html: msg.text }} /> : msg.text}
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : msg.content}
                 <div className="text-[10px] text-muted-foreground mt-1">{msg.time}</div>
               </div>
             ))}
-            {typing && (
+            {streaming && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex gap-1 px-4 py-3 bg-secondary rounded-xl rounded-bl-sm w-fit self-start">
                 {[0, 1, 2].map(i => (
                   <div key={i} className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
@@ -98,10 +198,10 @@ export default function ChatPage() {
           <div className="p-4 border-t border-border flex gap-2.5 items-end">
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Ask me anything about fitness, nutrition, or your progress..."
+              placeholder="Ask about workouts, nutrition, form tips..."
               rows={1} className="flex-1 px-3.5 py-2.5 bg-secondary border border-border rounded-lg text-foreground text-sm outline-none resize-none min-h-[40px] max-h-[120px] focus:border-primary transition-colors" />
-            <button onClick={() => sendMessage()}
-              className="w-[42px] h-[42px] rounded-lg bg-primary flex items-center justify-center text-lg hover:opacity-90 transition-all">
+            <button onClick={() => sendMessage()} disabled={streaming}
+              className="w-[42px] h-[42px] rounded-lg bg-primary flex items-center justify-center text-lg hover:opacity-90 transition-all disabled:opacity-50">
               ➤
             </button>
           </div>
@@ -109,28 +209,4 @@ export default function ChatPage() {
       </div>
     </div>
   );
-}
-
-function generateAnswer(question: string, profile: any): string {
-  const q = question.toLowerCase();
-  const weight = profile?.weight || 70;
-  const level = profile?.fitness_level || "beginner";
-
-  if (q.includes("protein")) {
-    const g = Math.round(weight * (level === "advanced" ? 2.2 : level === "intermediate" ? 2.0 : 1.8));
-    return `Based on your profile (${weight}kg, ${level}), you should target <strong>${g}g of protein per day</strong>. Spread it across 4-5 meals. Top sources: chicken breast, eggs, Greek yogurt, whey protein.`;
-  }
-  if (q.includes("fat loss") || q.includes("lose weight")) {
-    return `For fat loss: Create a <strong>300-500 calorie deficit</strong> from your TDEE (~${Math.round(weight * 25)} kcal). Keep protein HIGH — ${Math.round(weight * 2)}g/day. Do <strong>3-4 resistance + 2 cardio</strong> sessions weekly.`;
-  }
-  if (q.includes("squat")) {
-    return `For a stronger squat: 1) Shoulder-width stance, toes ~30° out. 2) Break parallel if mobility allows. 3) "Spread the floor with your feet" to activate glutes. 4) Practice <strong>goblet squats</strong> for motor pattern.`;
-  }
-  if (q.includes("pre-workout") || q.includes("eat before")) {
-    return `<strong>Pre-workout (1-2h before):</strong><br>• 30-50g complex carbs (oats, banana)<br>• 20-30g lean protein<br>• Keep fats low<br>• Hydrate 400-600ml water<br>🍌 30min before: banana + coffee = quick energy!`;
-  }
-  if (q.includes("rest day")) {
-    return `For a ${level}, take <strong>${level === "beginner" ? "2-3" : level === "intermediate" ? "1-2" : "1"} rest days per week</strong>. Active recovery (walking, yoga) beats complete rest. Sleep 7-9 hours for peak recovery.`;
-  }
-  return `Great question! As your FitAI coach, here's my advice for your ${level} level and ${profile?.goal || "fitness"} goal:<br><br>Focus on progressive overload. At ${weight}kg, prioritize compound movements. Keep protein high (${Math.round(weight * 1.8)}g+/day) and get 7-9 hours sleep. Consistency beats perfection! 💪`;
 }
