@@ -129,6 +129,9 @@ export default function WorkoutPage() {
     setCompletedSets([]);
     setTimerSeconds(0);
     setTimerRunning(false);
+    setAutoTimerActive(false);
+    plankHoldFrames.current = 0;
+    plankLostFrames.current = 0;
     setLastPhase("neutral");
     const e = EXERCISES[ex];
     setFeedback(`Loaded: ${e.name} — ${e.timed ? "Hold for time" : `${e.defaultReps} reps × ${e.defaultSets} sets`}. ${e.muscle} focused.`);
