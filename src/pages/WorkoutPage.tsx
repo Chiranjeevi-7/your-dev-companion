@@ -3,7 +3,7 @@ import { EXERCISES, TIMED_EXERCISES } from "@/lib/exercises";
 import { useProfile } from "@/hooks/useProfile";
 import { useAddWorkoutLog } from "@/hooks/useWorkoutLogs";
 import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
-import { analyzeForm, detectRepPhase } from "@/lib/formAnalysis";
+import { analyzeForm, detectRepPhase, detectPlankHold } from "@/lib/formAnalysis";
 import { toast } from "sonner";
 import PoseCanvas from "@/components/workout/PoseCanvas";
 import RepCounter from "@/components/workout/RepCounter";
@@ -20,10 +20,13 @@ export default function WorkoutPage() {
   const [weightUsed, setWeightUsed] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [autoTimerActive, setAutoTimerActive] = useState(false);
   const [fatigue, setFatigue] = useState(10);
   const [feedback, setFeedback] = useState("Start a set to receive real-time posture corrections...");
   const [feedbackType, setFeedbackType] = useState<"good" | "warning" | "error">("good");
   const [lastPhase, setLastPhase] = useState<"up" | "down" | "neutral">("neutral");
+  const plankHoldFrames = useRef(0);
+  const plankLostFrames = useRef(0);
   const phaseFrameCount = useRef(0);
   const stablePhase = useRef<"up" | "down" | "neutral">("neutral");
 
@@ -50,7 +53,22 @@ export default function WorkoutPage() {
 
   // Process landmarks for form analysis & rep counting
   useEffect(() => {
-    if (!pose.landmarks) return;
+    if (!pose.landmarks) {
+      // No landmarks — if plank auto-timer is running, count lost frames
+      if (isTimed && autoTimerActive) {
+        plankLostFrames.current++;
+        if (plankLostFrames.current >= 15) {
+          // Lost pose for ~0.5s — pause auto timer
+          setTimerRunning(false);
+          setAutoTimerActive(false);
+          plankHoldFrames.current = 0;
+          plankLostFrames.current = 0;
+          setFeedback("⏸ Plank pose lost — timer paused. Get back into position to resume.");
+          setFeedbackType("warning");
+        }
+      }
+      return;
+    }
     const angles = getJointAngles(pose.landmarks);
     if (!angles) return;
 
@@ -59,27 +77,51 @@ export default function WorkoutPage() {
     setFeedback(check.message);
     setFeedbackType(check.type);
 
-    // Rep counting with stability filter (not for timed exercises)
-    if (!isTimed) {
-      const phase = detectRepPhase(exercise, angles);
-      if (phase !== "neutral") {
-        if (phase === stablePhase.current) {
-          phaseFrameCount.current++;
-        } else {
-          stablePhase.current = phase;
-          phaseFrameCount.current = 1;
+    // Auto timer for timed exercises (plank)
+    if (isTimed) {
+      const isHolding = detectPlankHold(angles);
+      if (isHolding) {
+        plankLostFrames.current = 0;
+        plankHoldFrames.current++;
+        // Require 10 consecutive frames (~0.3s) to confirm pose
+        if (plankHoldFrames.current >= 10 && !autoTimerActive) {
+          setTimerRunning(true);
+          setAutoTimerActive(true);
+          setFeedback("✓ Plank detected — timer started automatically!");
+          setFeedbackType("good");
         }
-        // Require 3 consecutive frames in same phase to confirm
-        if (phaseFrameCount.current >= 3) {
-          if (lastPhase === "down" && phase === "up") {
-            setReps(r => r + 1);
-            setFatigue(f => Math.min(100, f + 3));
-          }
-          if (phase !== lastPhase) setLastPhase(phase);
+      } else {
+        plankHoldFrames.current = 0;
+        plankLostFrames.current++;
+        if (plankLostFrames.current >= 15 && autoTimerActive) {
+          setTimerRunning(false);
+          setAutoTimerActive(false);
+          setFeedback("⏸ Plank broken — timer paused. Resume your hold to continue.");
+          setFeedbackType("warning");
         }
       }
+      return;
     }
-  }, [pose.landmarks, exercise, isTimed, lastPhase]);
+
+    // Rep counting with stability filter (not for timed exercises)
+    const phase = detectRepPhase(exercise, angles);
+    if (phase !== "neutral") {
+      if (phase === stablePhase.current) {
+        phaseFrameCount.current++;
+      } else {
+        stablePhase.current = phase;
+        phaseFrameCount.current = 1;
+      }
+      // Require 3 consecutive frames in same phase to confirm
+      if (phaseFrameCount.current >= 3) {
+        if (lastPhase === "down" && phase === "up") {
+          setReps(r => r + 1);
+          setFatigue(f => Math.min(100, f + 3));
+        }
+        if (phase !== lastPhase) setLastPhase(phase);
+      }
+    }
+  }, [pose.landmarks, exercise, isTimed, lastPhase, autoTimerActive]);
 
   const changeExercise = (ex: string) => {
     setExercise(ex);
@@ -87,6 +129,9 @@ export default function WorkoutPage() {
     setCompletedSets([]);
     setTimerSeconds(0);
     setTimerRunning(false);
+    setAutoTimerActive(false);
+    plankHoldFrames.current = 0;
+    plankLostFrames.current = 0;
     setLastPhase("neutral");
     const e = EXERCISES[ex];
     setFeedback(`Loaded: ${e.name} — ${e.timed ? "Hold for time" : `${e.defaultReps} reps × ${e.defaultSets} sets`}. ${e.muscle} focused.`);
@@ -159,8 +204,10 @@ export default function WorkoutPage() {
           <TimerPanel
             timerSeconds={timerSeconds}
             onStart={() => setTimerRunning(true)}
-            onPause={() => setTimerRunning(false)}
-            onReset={() => { setTimerRunning(false); setTimerSeconds(0); }}
+            onPause={() => { setTimerRunning(false); setAutoTimerActive(false); }}
+            onReset={() => { setTimerRunning(false); setTimerSeconds(0); setAutoTimerActive(false); plankHoldFrames.current = 0; plankLostFrames.current = 0; }}
+            isAutoMode={autoTimerActive}
+            isTimed={isTimed}
           />
           <SafetyMonitor fatigue={fatigue} fatigueLabel={fatigueLabel} fatigueColor={fatigueColor} />
           

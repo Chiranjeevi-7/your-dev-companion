@@ -105,6 +105,14 @@ function analyzeShoulderPress(a: JointAngles): FormCheck {
   return { message: "✓ Good press — keep core braced", type: "good" };
 }
 
+// Plank hold detection — returns true when body is in valid plank position
+export function detectPlankHold(angles: JointAngles): boolean {
+  const hipAvg = (angles.leftHip + angles.rightHip) / 2;
+  const shoulderAvg = (angles.leftShoulder + angles.rightShoulder) / 2;
+  // Valid plank: hips between 150-190 (straight line) and shoulders not collapsed
+  return hipAvg >= 150 && hipAvg <= 190 && shoulderAvg >= 70;
+}
+
 // Rep detection based on angle thresholds
 export function detectRepPhase(
   exercise: string,
