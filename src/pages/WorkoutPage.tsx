@@ -204,8 +204,10 @@ export default function WorkoutPage() {
           <TimerPanel
             timerSeconds={timerSeconds}
             onStart={() => setTimerRunning(true)}
-            onPause={() => setTimerRunning(false)}
-            onReset={() => { setTimerRunning(false); setTimerSeconds(0); }}
+            onPause={() => { setTimerRunning(false); setAutoTimerActive(false); }}
+            onReset={() => { setTimerRunning(false); setTimerSeconds(0); setAutoTimerActive(false); plankHoldFrames.current = 0; plankLostFrames.current = 0; }}
+            isAutoMode={autoTimerActive}
+            isTimed={isTimed}
           />
           <SafetyMonitor fatigue={fatigue} fatigueLabel={fatigueLabel} fatigueColor={fatigueColor} />
           
