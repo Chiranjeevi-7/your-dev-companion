@@ -3,7 +3,7 @@ import { EXERCISES, TIMED_EXERCISES } from "@/lib/exercises";
 import { useProfile } from "@/hooks/useProfile";
 import { useAddWorkoutLog } from "@/hooks/useWorkoutLogs";
 import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
-import { analyzeForm, detectRepPhase } from "@/lib/formAnalysis";
+import { analyzeForm, detectRepPhase, detectPlankHold } from "@/lib/formAnalysis";
 import { toast } from "sonner";
 import PoseCanvas from "@/components/workout/PoseCanvas";
 import RepCounter from "@/components/workout/RepCounter";
