@@ -20,10 +20,13 @@ export default function WorkoutPage() {
   const [weightUsed, setWeightUsed] = useState("");
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [autoTimerActive, setAutoTimerActive] = useState(false);
   const [fatigue, setFatigue] = useState(10);
   const [feedback, setFeedback] = useState("Start a set to receive real-time posture corrections...");
   const [feedbackType, setFeedbackType] = useState<"good" | "warning" | "error">("good");
   const [lastPhase, setLastPhase] = useState<"up" | "down" | "neutral">("neutral");
+  const plankHoldFrames = useRef(0);
+  const plankLostFrames = useRef(0);
   const phaseFrameCount = useRef(0);
   const stablePhase = useRef<"up" | "down" | "neutral">("neutral");
 
