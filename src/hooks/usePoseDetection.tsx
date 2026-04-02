@@ -32,7 +32,10 @@ export function getJointAngles(landmarks: any[]) {
 
 const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
 
-export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, videoRef: React.RefObject<HTMLVideoElement>) {
+export function usePoseDetection(
+  canvasRef: React.RefObject<HTMLCanvasElement>,
+  videoRef: React.RefObject<HTMLVideoElement>
+) {
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
   const animFrameRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
@@ -57,7 +60,7 @@ export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, 
         numPoses: 1,
       });
       poseLandmarkerRef.current = landmarker;
-      setState(s => ({ ...s, isModelLoaded: true }));
+      setState(s => ({ ...s, isModelLoaded: true, error: null }));
     } catch (err: any) {
       setState(s => ({ ...s, error: `Model load failed: ${err.message}` }));
     }
@@ -90,11 +93,13 @@ export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const landmarker = poseLandmarkerRef.current;
+
     if (!video || !canvas || !landmarker || video.readyState < 2) {
       animFrameRef.current = requestAnimationFrame(detectFrame);
       return;
     }
 
+    // FPS calculation
     const now = performance.now();
     fpsCountRef.current++;
     if (now - lastTimeRef.current >= 1000) {
@@ -105,77 +110,102 @@ export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, 
 
     const result = landmarker.detectForVideo(video, now);
     const ctx = canvas.getContext("2d")!;
+
+    // Critical: Sync canvas size with video
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw video frame (mirrored)
+    // Draw mirrored video (selfie view)
     ctx.save();
     ctx.scale(-1, 1);
     ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
     ctx.restore();
 
     if (result.landmarks && result.landmarks.length > 0) {
-      const lm = result.landmarks[0];
+      let lm = result.landmarks[0];
 
-      // Mirror landmarks to match the flipped video
+      // Mirror landmarks to match flipped video
       const mirroredLm = lm.map((pt: any) => ({
-        ...pt,
         x: 1 - pt.x,
+        y: pt.y,
+        z: pt.z || 0,
+        visibility: pt.visibility ?? 0,
       }));
 
-      // Check landmark visibility — filter out low-confidence frames
+      // Strong visibility check to prevent glitching
       const keyIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
       const avgVisibility = keyIndices.reduce((sum, i) => sum + (mirroredLm[i]?.visibility ?? 0), 0) / keyIndices.length;
 
-      if (avgVisibility > 0.5) {
+      const MIN_VISIBILITY = 0.58;
+
+      if (avgVisibility > MIN_VISIBILITY) {
         setState(s => ({ ...s, landmarks: mirroredLm }));
-      } else {
-        // Low confidence — don't update landmarks (prevents glitch reps)
-        setState(s => ({ ...s, landmarks: null }));
-      }
 
-      // Draw skeleton with mirrored coordinates
-      const drawingUtils = new DrawingUtils(ctx);
-      drawingUtils.drawLandmarks(mirroredLm, {
-        radius: 4,
-        color: "hsl(153, 100%, 50%)",
-        fillColor: "hsl(153, 100%, 50%)",
-      });
-      drawingUtils.drawConnectors(mirroredLm, PoseLandmarker.POSE_CONNECTIONS, {
-        color: "hsl(217, 91%, 60%)",
-        lineWidth: 3,
-      });
+        const drawingUtils = new DrawingUtils(ctx);
 
-      // Draw angle labels
-      if (avgVisibility > 0.5) {
+        // Draw clean stick figure
+        drawingUtils.drawConnectors(
+          mirroredLm,
+          PoseLandmarker.POSE_CONNECTIONS,
+          { color: "hsl(217, 91%, 60%)", lineWidth: 5 }
+        );
+
+        drawingUtils.drawLandmarks(mirroredLm, {
+          radius: (landmark: any) => (landmark.visibility > 0.7 ? 6 : 3),
+          color: "hsl(153, 100%, 50%)",
+          fillColor: "hsl(153, 100%, 50%)",
+        });
+
+        // Highlight high-confidence joints
+        ctx.fillStyle = "#ff00aa";
+        mirroredLm.forEach((pt: any, i: number) => {
+          if (pt.visibility > 0.75) {
+            const px = pt.x * canvas.width;
+            const py = pt.y * canvas.height;
+            ctx.beginPath();
+            ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
+
+        // Draw angle labels (only when confident)
         const angles = getJointAngles(mirroredLm);
         if (angles) {
-          ctx.font = "bold 11px monospace";
-          ctx.fillStyle = "hsl(153, 100%, 50%)";
-          const drawAngle = (idx: number, angle: number, label: string) => {
+          ctx.font = "bold 12px monospace";
+          ctx.fillStyle = "#00ffcc";
+          const drawLabel = (idx: number, angle: number, label: string) => {
             const pt = mirroredLm[idx];
-            ctx.fillText(`${label}: ${Math.round(angle)}°`, pt.x * canvas.width + 8, pt.y * canvas.height - 4);
+            if (pt.visibility > 0.6) {
+              ctx.fillText(
+                `${label} ${Math.round(angle)}°`,
+                pt.x * canvas.width + 10,
+                pt.y * canvas.height - 8
+              );
+            }
           };
-          drawAngle(25, angles.leftKnee, "L.Knee");
-          drawAngle(26, angles.rightKnee, "R.Knee");
-          drawAngle(13, angles.leftElbow, "L.Elbow");
-          drawAngle(14, angles.rightElbow, "R.Elbow");
+          drawLabel(25, angles.leftKnee, "LK");
+          drawLabel(26, angles.rightKnee, "RK");
+          drawLabel(13, angles.leftElbow, "LE");
+          drawLabel(14, angles.rightElbow, "RE");
         }
+      } else {
+        setState(s => ({ ...s, landmarks: null }));
       }
     } else {
       setState(s => ({ ...s, landmarks: null }));
     }
 
     // Overlay info
-    ctx.font = "bold 12px monospace";
-    ctx.fillStyle = "rgba(0,255,136,0.9)";
-    ctx.fillText(`BLAZEPOSE  |  33 KEYPOINTS  |  FPS: ${state.fps}`, 12, 22);
+    ctx.font = "bold 13px monospace";
+    ctx.fillStyle = "rgba(0, 255, 136, 0.9)";
+    ctx.fillText(`BLAZEPOSE • 33 PTS • ${state.fps} FPS`, 15, 28);
 
     animFrameRef.current = requestAnimationFrame(detectFrame);
   }, [canvasRef, videoRef, state.fps]);
 
-  // Start detection loop when webcam is active
+  // Start detection loop
   useEffect(() => {
     if (state.isWebcamActive && state.isModelLoaded) {
       animFrameRef.current = requestAnimationFrame(detectFrame);
@@ -185,7 +215,7 @@ export function usePoseDetection(canvasRef: React.RefObject<HTMLCanvasElement>, 
     };
   }, [state.isWebcamActive, state.isModelLoaded, detectFrame]);
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
       stopWebcam();
