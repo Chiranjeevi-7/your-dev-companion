@@ -126,8 +126,8 @@ export default function PoseCanvas({
       )}
 
       <div className="p-4 border-t border-border">
-        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">AI Form Feedback</div>
-        <div className={`rounded-lg p-3 text-sm min-h-[60px] leading-relaxed border ${feedbackBg}`}>
+        <div className="text-sm text-muted-foreground uppercase tracking-wider mb-2 font-semibold">AI Form Feedback</div>
+        <div className={`rounded-lg p-4 text-base md:text-lg min-h-[80px] leading-relaxed border font-medium ${feedbackBg}`}>
           {feedback}
         </div>
       </div>

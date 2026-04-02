@@ -116,7 +116,7 @@ export default function WorkoutPage() {
       if (phaseFrameCount.current >= 3) {
         if (lastPhase === "down" && phase === "up") {
           setReps(r => r + 1);
-          setFatigue(f => Math.min(100, f + 3));
+          setFatigue(f => Math.min(100, f + 1));
         }
         if (phase !== lastPhase) setLastPhase(phase);
       }
