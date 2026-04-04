@@ -4,6 +4,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useAddWorkoutLog } from "@/hooks/useWorkoutLogs";
 import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
 import { analyzeForm, detectRepPhase, detectPlankHold } from "@/lib/formAnalysis";
+import { mlAnalyzer, MLFormResult } from "@/lib/mlFormAnalyzer";
 import { toast } from "sonner";
 import PoseCanvas from "@/components/workout/PoseCanvas";
 import RepCounter from "@/components/workout/RepCounter";
@@ -25,6 +26,8 @@ export default function WorkoutPage() {
   const [feedback, setFeedback] = useState("Start a set to receive real-time posture corrections...");
   const [feedbackType, setFeedbackType] = useState<"good" | "warning" | "error">("good");
   const [lastPhase, setLastPhase] = useState<"up" | "down" | "neutral">("neutral");
+  const [mlResult, setMlResult] = useState<MLFormResult | null>(null);
+  const [mlModelReady, setMlModelReady] = useState(false);
   const plankHoldFrames = useRef(0);
   const plankLostFrames = useRef(0);
   const phaseFrameCount = useRef(0);
@@ -41,6 +44,14 @@ export default function WorkoutPage() {
   const targetReps = info?.defaultReps || 12;
   const targetSets = info?.defaultSets || 3;
 
+  // Load ML model on mount
+  useEffect(() => {
+    mlAnalyzer.loadModel().then(() => {
+      setMlModelReady(mlAnalyzer.ready);
+      if (mlAnalyzer.ready) console.log("[WorkoutPage] TF.js ML model ready");
+    });
+  }, []);
+
   // Timer
   useEffect(() => {
     if (timerRunning) {
@@ -54,11 +65,9 @@ export default function WorkoutPage() {
   // Process landmarks for form analysis & rep counting
   useEffect(() => {
     if (!pose.landmarks) {
-      // No landmarks — if plank auto-timer is running, count lost frames
       if (isTimed && autoTimerActive) {
         plankLostFrames.current++;
         if (plankLostFrames.current >= 15) {
-          // Lost pose for ~0.5s — pause auto timer
           setTimerRunning(false);
           setAutoTimerActive(false);
           plankHoldFrames.current = 0;
@@ -72,10 +81,22 @@ export default function WorkoutPage() {
     const angles = getJointAngles(pose.landmarks);
     if (!angles) return;
 
-    // Form feedback
+    // Rule-based feedback (for display message)
     const check = analyzeForm(exercise, angles);
     setFeedback(check.message);
     setFeedbackType(check.type);
+
+    // ML inference (runs every frame, TF.js is fast enough)
+    const fitnessLevelNum = { beginner: 0, intermediate: 0.5, advanced: 1 }[profile?.fitness_level || "beginner"] ?? 0;
+    const result = mlAnalyzer.analyze({
+      ...angles,
+      fatigue,
+      weight: profile?.weight || 70,
+      height: profile?.height || 170,
+      fitnessLevel: fitnessLevelNum,
+      exercise,
+    });
+    setMlResult(result);
 
     // Auto timer for timed exercises (plank)
     if (isTimed) {
@@ -83,7 +104,6 @@ export default function WorkoutPage() {
       if (isHolding) {
         plankLostFrames.current = 0;
         plankHoldFrames.current++;
-        // Require 10 consecutive frames (~0.3s) to confirm pose
         if (plankHoldFrames.current >= 10 && !autoTimerActive) {
           setTimerRunning(true);
           setAutoTimerActive(true);
@@ -103,7 +123,7 @@ export default function WorkoutPage() {
       return;
     }
 
-    // Rep counting with stability filter (not for timed exercises)
+    // Rep counting with stability filter
     const phase = detectRepPhase(exercise, angles);
     if (phase !== "neutral") {
       if (phase === stablePhase.current) {
@@ -112,7 +132,6 @@ export default function WorkoutPage() {
         stablePhase.current = phase;
         phaseFrameCount.current = 1;
       }
-      // Require 3 consecutive frames in same phase to confirm
       if (phaseFrameCount.current >= 3) {
         if (lastPhase === "down" && phase === "up") {
           setReps(r => r + 1);
@@ -121,7 +140,7 @@ export default function WorkoutPage() {
         if (phase !== lastPhase) setLastPhase(phase);
       }
     }
-  }, [pose.landmarks, exercise, isTimed, lastPhase, autoTimerActive]);
+  }, [pose.landmarks, exercise, isTimed, lastPhase, autoTimerActive, fatigue, profile]);
 
   const changeExercise = (ex: string) => {
     setExercise(ex);
@@ -133,6 +152,7 @@ export default function WorkoutPage() {
     plankHoldFrames.current = 0;
     plankLostFrames.current = 0;
     setLastPhase("neutral");
+    setMlResult(null);
     const e = EXERCISES[ex];
     setFeedback(`Loaded: ${e.name} — ${e.timed ? "Hold for time" : `${e.defaultReps} reps × ${e.defaultSets} sets`}. ${e.muscle} focused.`);
   };
@@ -173,7 +193,6 @@ export default function WorkoutPage() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
-        {/* Left: Pose Detection */}
         <PoseCanvas
           canvasRef={canvasRef}
           videoRef={videoRef}
@@ -187,9 +206,10 @@ export default function WorkoutPage() {
           feedbackType={feedbackType}
           fps={pose.fps}
           error={pose.error}
+          mlResult={mlResult}
+          mlModelReady={mlModelReady}
         />
 
-        {/* Right: Controls */}
         <div className="flex flex-col gap-3.5">
           <RepCounter
             reps={reps}
@@ -209,7 +229,12 @@ export default function WorkoutPage() {
             isAutoMode={autoTimerActive}
             isTimed={isTimed}
           />
-          <SafetyMonitor fatigue={fatigue} fatigueLabel={fatigueLabel} fatigueColor={fatigueColor} />
+          <SafetyMonitor
+            fatigue={fatigue}
+            fatigueLabel={fatigueLabel}
+            fatigueColor={fatigueColor}
+            mlResult={mlResult}
+          />
           
           {/* AI Recommendation */}
           <div className="rounded-xl p-3.5 text-sm leading-relaxed border"
@@ -220,7 +245,8 @@ export default function WorkoutPage() {
             <strong className="text-primary">🤖 AI Recommendation for {info?.name}</strong><br />
             Weight: <strong>{recWeight}kg</strong> for {profile?.fitness_level || "beginner"}<br />
             Reps: <strong>{targetReps}</strong> per set
-            {pose.isWebcamActive && <><br /><span className="text-info">📷 BlazePose active — 33 keypoints tracked</span></>}
+            {mlModelReady && <><br /><span className="text-info text-xs">🧠 TensorFlow.js neural network active — hybrid ML + biomechanical analysis</span></>}
+            {pose.isWebcamActive && <><br /><span className="text-info text-xs">📷 BlazePose active — 33 keypoints tracked</span></>}
           </div>
 
           <WeightLogger
