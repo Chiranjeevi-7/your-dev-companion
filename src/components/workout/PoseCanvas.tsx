@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { EXERCISES } from "@/lib/exercises";
+import { MLFormResult, ERROR_LABELS } from "@/lib/mlFormAnalyzer";
 import cameraSetupGuide from "@/assets/camera-setup-guide.png";
 
 interface PoseCanvasProps {
@@ -15,12 +16,15 @@ interface PoseCanvasProps {
   feedbackType: "good" | "warning" | "error";
   fps: number;
   error: string | null;
+  mlResult?: MLFormResult | null;
+  mlModelReady?: boolean;
 }
 
 export default function PoseCanvas({
   canvasRef, videoRef, exercise, onChangeExercise, onLogSet,
   isWebcamActive, isModelLoaded, onToggleCamera,
   feedback, feedbackType, fps, error,
+  mlResult, mlModelReady,
 }: PoseCanvasProps) {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const info = EXERCISES[exercise];
@@ -41,7 +45,12 @@ export default function PoseCanvas({
             <span className="ml-3 text-sm font-mono text-primary animate-pulse">● LIVE</span>
           )}
         </h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {mlModelReady && (
+            <span className="px-2 py-1 rounded-md text-[10px] font-mono bg-primary/10 text-primary border border-primary/20">
+              🧠 TF.js Active
+            </span>
+          )}
           <button onClick={() => setShowSetupGuide(g => !g)}
             className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-secondary text-secondary-foreground hover:opacity-80 transition-all">
             📐 Setup Guide
@@ -108,13 +117,25 @@ export default function PoseCanvas({
         {!isWebcamActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm z-10">
             <span className="text-5xl">🎥</span>
-            <span>Click <strong>"Load AI + Camera"</strong> to start BlazePose detection</span>
+            <span>Click <strong>"Load AI + Camera"</strong> to start BlazePose + TF.js detection</span>
             <span className="text-xs text-muted-foreground/60">Stand 6–8 ft away • Full body in frame • Good lighting</span>
           </div>
         )}
         {isWebcamActive && (
           <div className="absolute top-3 right-3 bg-card/80 backdrop-blur-sm rounded-lg px-2.5 py-1 text-xs font-mono text-primary z-10">
             {fps} FPS
+          </div>
+        )}
+
+        {/* ML Overlay — error detection badge */}
+        {isWebcamActive && mlResult && mlResult.errorClass !== "good_form" && (
+          <div className="absolute top-3 left-3 bg-destructive/90 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs font-bold text-destructive-foreground z-10 animate-pulse">
+            ⚠ {ERROR_LABELS[mlResult.errorClass]} — {mlResult.errorConfidence}% conf
+          </div>
+        )}
+        {isWebcamActive && mlResult && mlResult.errorClass === "good_form" && (
+          <div className="absolute top-3 left-3 bg-primary/80 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs font-bold text-primary-foreground z-10">
+            ✓ Good Form — {mlResult.formScore}%
           </div>
         )}
       </div>
@@ -126,7 +147,14 @@ export default function PoseCanvas({
       )}
 
       <div className="p-4 border-t border-border">
-        <div className="text-sm text-muted-foreground uppercase tracking-wider mb-2 font-semibold">AI Form Feedback</div>
+        <div className="text-sm text-muted-foreground uppercase tracking-wider mb-2 font-semibold">
+          🧠 AI Form Feedback
+          {mlResult && (
+            <span className="ml-2 text-[10px] font-mono text-primary normal-case">
+              ML Score: {mlResult.formScore}% • {ERROR_LABELS[mlResult.errorClass]}
+            </span>
+          )}
+        </div>
         <div className={`rounded-lg p-4 text-base md:text-lg min-h-[80px] leading-relaxed border font-medium ${feedbackBg}`}>
           {feedback}
         </div>
