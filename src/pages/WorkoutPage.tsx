@@ -6,6 +6,7 @@ import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
 import { analyzeForm, detectRepPhase, detectPlankHold, detectMovementType, isMovementMatchingExercise } from "@/lib/formAnalysis";
 import { mlAnalyzer, MLFormResult } from "@/lib/mlFormAnalyzer";
 import { useVoiceFeedback } from "@/hooks/useVoiceFeedback";
+import { usePersonLock } from "@/hooks/usePersonLock";
 import { toast } from "sonner";
 import PoseCanvas from "@/components/workout/PoseCanvas";
 import RepCounter from "@/components/workout/RepCounter";
@@ -34,6 +35,7 @@ export default function WorkoutPage() {
   const plankLostFrames = useRef(0);
   const phaseFrameCount = useRef(0);
   const stablePhase = useRef<"up" | "down" | "neutral">("neutral");
+  const autoLockedRef = useRef(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -41,6 +43,7 @@ export default function WorkoutPage() {
 
   const pose = usePoseDetection(canvasRef, videoRef);
   const voiceCoach = useVoiceFeedback(voiceEnabled, pose.isWebcamActive);
+  const personLock = usePersonLock();
 
   const info = EXERCISES[exercise];
   const isTimed = TIMED_EXERCISES.includes(exercise);
@@ -54,6 +57,19 @@ export default function WorkoutPage() {
       if (mlAnalyzer.ready) console.log("[WorkoutPage] TF.js ML model ready");
     });
   }, []);
+
+  // Auto-lock person when webcam starts and landmarks first appear
+  useEffect(() => {
+    if (pose.isWebcamActive && pose.landmarks && personLock.lockEnabled && !personLock.isLocked && !autoLockedRef.current) {
+      personLock.lockPerson(pose.landmarks);
+      autoLockedRef.current = true;
+      toast.info("🔒 Person locked — tracking you only");
+    }
+    if (!pose.isWebcamActive) {
+      autoLockedRef.current = false;
+      if (personLock.isLocked) personLock.unlock();
+    }
+  }, [pose.isWebcamActive, pose.landmarks, personLock]);
 
   // Timer
   useEffect(() => {
@@ -81,6 +97,14 @@ export default function WorkoutPage() {
       }
       return;
     }
+
+    // Person lock validation
+    if (!personLock.validatePerson(pose.landmarks)) {
+      setFeedback("⚠ Different person detected — ignoring. Move back into frame or re-lock.");
+      setFeedbackType("warning");
+      return;
+    }
+
     const angles = getJointAngles(pose.landmarks);
     if (!angles) return;
 
@@ -89,7 +113,7 @@ export default function WorkoutPage() {
     setFeedback(check.message);
     setFeedbackType(check.type);
 
-    // ML inference (runs every frame, TF.js is fast enough)
+    // ML inference
     const fitnessLevelNum = { beginner: 0, intermediate: 0.5, advanced: 1 }[profile?.fitness_level || "beginner"] ?? 0;
     const result = mlAnalyzer.analyze({
       ...angles,
@@ -138,6 +162,7 @@ export default function WorkoutPage() {
       };
       setFeedback(`⚠ Wrong movement detected: looks like ${movementLabels[detectedMovement] || detectedMovement}. You selected ${info.name}.`);
       setFeedbackType("error");
+      voiceCoach.processWrongMovement(detectedMovement, exercise);
       return; // Don't count reps for wrong movement
     }
 
@@ -158,7 +183,7 @@ export default function WorkoutPage() {
         if (phase !== lastPhase) setLastPhase(phase);
       }
     }
-  }, [pose.landmarks, exercise, isTimed, lastPhase, autoTimerActive, fatigue, profile]);
+  }, [pose.landmarks, exercise, isTimed, lastPhase, autoTimerActive, fatigue, profile, personLock]);
 
   const changeExercise = (ex: string) => {
     setExercise(ex);
@@ -203,6 +228,15 @@ export default function WorkoutPage() {
     }
   }, [pose]);
 
+  const handleLockPerson = useCallback(() => {
+    if (personLock.isLocked) {
+      personLock.unlock();
+    } else if (pose.landmarks) {
+      personLock.lockPerson(pose.landmarks);
+      toast.info("🔒 Person locked");
+    }
+  }, [personLock, pose.landmarks]);
+
   const levelMultiplier = { beginner: 0.7, intermediate: 1.0, advanced: 1.3 }[profile?.fitness_level || "beginner"] || 0.7;
   const recWeight = Math.round((profile?.weight || 70) * 0.7 * levelMultiplier);
   const fatigueLabel = fatigue < 30 ? "Low" : fatigue < 60 ? "Moderate" : fatigue < 80 ? "High" : "🚨 CRITICAL";
@@ -228,6 +262,11 @@ export default function WorkoutPage() {
           mlModelReady={mlModelReady}
           voiceEnabled={voiceEnabled}
           onToggleVoice={() => setVoiceEnabled(v => !v)}
+          personLocked={personLock.isLocked}
+          lockEnabled={personLock.lockEnabled}
+          personLost={personLock.personLost}
+          onToggleLock={handleLockPerson}
+          onToggleLockMode={personLock.toggleLockEnabled}
         />
 
         <div className="flex flex-col gap-3.5">
