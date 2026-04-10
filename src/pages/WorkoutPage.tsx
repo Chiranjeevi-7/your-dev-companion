@@ -5,6 +5,7 @@ import { useAddWorkoutLog } from "@/hooks/useWorkoutLogs";
 import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
 import { analyzeForm, detectRepPhase, detectPlankHold } from "@/lib/formAnalysis";
 import { mlAnalyzer, MLFormResult } from "@/lib/mlFormAnalyzer";
+import { useVoiceFeedback } from "@/hooks/useVoiceFeedback";
 import { toast } from "sonner";
 import PoseCanvas from "@/components/workout/PoseCanvas";
 import RepCounter from "@/components/workout/RepCounter";
@@ -28,6 +29,7 @@ export default function WorkoutPage() {
   const [lastPhase, setLastPhase] = useState<"up" | "down" | "neutral">("neutral");
   const [mlResult, setMlResult] = useState<MLFormResult | null>(null);
   const [mlModelReady, setMlModelReady] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const plankHoldFrames = useRef(0);
   const plankLostFrames = useRef(0);
   const phaseFrameCount = useRef(0);
@@ -38,6 +40,7 @@ export default function WorkoutPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const pose = usePoseDetection(canvasRef, videoRef);
+  const voiceCoach = useVoiceFeedback(voiceEnabled, pose.isWebcamActive);
 
   const info = EXERCISES[exercise];
   const isTimed = TIMED_EXERCISES.includes(exercise);
@@ -97,6 +100,7 @@ export default function WorkoutPage() {
       exercise,
     });
     setMlResult(result);
+    voiceCoach.process(result);
 
     // Auto timer for timed exercises (plank)
     if (isTimed) {
@@ -208,6 +212,8 @@ export default function WorkoutPage() {
           error={pose.error}
           mlResult={mlResult}
           mlModelReady={mlModelReady}
+          voiceEnabled={voiceEnabled}
+          onToggleVoice={() => setVoiceEnabled(v => !v)}
         />
 
         <div className="flex flex-col gap-3.5">
