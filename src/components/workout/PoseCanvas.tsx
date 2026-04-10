@@ -18,6 +18,8 @@ interface PoseCanvasProps {
   error: string | null;
   mlResult?: MLFormResult | null;
   mlModelReady?: boolean;
+  voiceEnabled?: boolean;
+  onToggleVoice?: () => void;
 }
 
 export default function PoseCanvas({
@@ -25,6 +27,7 @@ export default function PoseCanvas({
   isWebcamActive, isModelLoaded, onToggleCamera,
   feedback, feedbackType, fps, error,
   mlResult, mlModelReady,
+  voiceEnabled, onToggleVoice,
 }: PoseCanvasProps) {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const info = EXERCISES[exercise];
@@ -46,6 +49,16 @@ export default function PoseCanvas({
           )}
         </h2>
         <div className="flex gap-2 items-center">
+          {onToggleVoice && (
+            <button onClick={onToggleVoice}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                voiceEnabled
+                  ? "bg-primary/15 text-primary border border-primary/30"
+                  : "bg-muted text-muted-foreground border border-border"
+              }`}>
+              {voiceEnabled ? "🔊 Voice Coach" : "🔇 Voice Off"}
+            </button>
+          )}
           {mlModelReady && (
             <span className="px-2 py-1 rounded-md text-[10px] font-mono bg-primary/10 text-primary border border-primary/20">
               🧠 TF.js Active
