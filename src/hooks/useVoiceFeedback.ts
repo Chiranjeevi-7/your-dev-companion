@@ -20,9 +20,18 @@ const POSITIVE_MESSAGES = [
   "You're crushing it!",
 ];
 
+const MOVEMENT_LABELS: Record<string, string> = {
+  shoulder_press: "shoulder press",
+  bicep_curl: "bicep curl",
+  squat_or_lunge: "squat or lunge",
+  pushup: "push-up",
+  deadlift: "deadlift",
+};
+
 export function useVoiceFeedback(enabled: boolean, active: boolean) {
   const lastSpoke = useRef(0);
   const lastPositive = useRef(0);
+  const lastWrongMovement = useRef(0);
   const synthRef = useRef(typeof window !== "undefined" ? window.speechSynthesis : null);
 
   const speak = useCallback((text: string) => {
@@ -36,6 +45,16 @@ export function useVoiceFeedback(enabled: boolean, active: boolean) {
     synth.speak(utt);
   }, [enabled, active]);
 
+  const processWrongMovement = useCallback((detectedMovement: string, selectedExercise: string) => {
+    if (!enabled || !active) return;
+    const now = Date.now();
+    if (now - lastWrongMovement.current < 6000) return;
+    const label = MOVEMENT_LABELS[detectedMovement] || detectedMovement;
+    speak(`Wrong exercise. This looks like ${label}.`);
+    lastWrongMovement.current = now;
+    lastSpoke.current = now;
+  }, [enabled, active, speak]);
+
   const process = useCallback((mlResult: MLFormResult | null) => {
     if (!mlResult || !enabled || !active) return;
     const now = Date.now();
@@ -44,13 +63,11 @@ export function useVoiceFeedback(enabled: boolean, active: boolean) {
       if (now - lastSpoke.current < 5000) return;
       const msgs = ERROR_MESSAGES[mlResult.errorClass];
       if (!msgs) return;
-      // Prioritize high injury risk
       const prefix = mlResult.injuryRisk === "high" ? "Careful! " : "";
       speak(prefix + msgs[Math.floor(Math.random() * msgs.length)]);
       lastSpoke.current = now;
       lastPositive.current = now;
     } else {
-      // Positive feedback every 15-20s
       const posInterval = 15000 + Math.random() * 5000;
       if (now - lastPositive.current >= posInterval && now - lastSpoke.current >= 5000) {
         speak(POSITIVE_MESSAGES[Math.floor(Math.random() * POSITIVE_MESSAGES.length)]);
@@ -60,13 +77,11 @@ export function useVoiceFeedback(enabled: boolean, active: boolean) {
     }
   }, [enabled, active, speak]);
 
-  // Stop speaking when deactivated
   useEffect(() => {
     if (!active) synthRef.current?.cancel();
   }, [active]);
 
-  // Cleanup
   useEffect(() => () => { synthRef.current?.cancel(); }, []);
 
-  return { process };
+  return { process, processWrongMovement };
 }
