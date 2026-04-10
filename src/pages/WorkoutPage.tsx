@@ -100,6 +100,7 @@ export default function WorkoutPage() {
       exercise,
     });
     setMlResult(result);
+    voiceCoach.process(result);
 
     // Auto timer for timed exercises (plank)
     if (isTimed) {
@@ -211,6 +212,8 @@ export default function WorkoutPage() {
           error={pose.error}
           mlResult={mlResult}
           mlModelReady={mlModelReady}
+          voiceEnabled={voiceEnabled}
+          onToggleVoice={() => setVoiceEnabled(v => !v)}
         />
 
         <div className="flex flex-col gap-3.5">
