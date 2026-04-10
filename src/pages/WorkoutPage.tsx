@@ -3,7 +3,7 @@ import { EXERCISES, TIMED_EXERCISES } from "@/lib/exercises";
 import { useProfile } from "@/hooks/useProfile";
 import { useAddWorkoutLog } from "@/hooks/useWorkoutLogs";
 import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
-import { analyzeForm, detectRepPhase, detectPlankHold } from "@/lib/formAnalysis";
+import { analyzeForm, detectRepPhase, detectPlankHold, detectMovementType, isMovementMatchingExercise } from "@/lib/formAnalysis";
 import { mlAnalyzer, MLFormResult } from "@/lib/mlFormAnalyzer";
 import { useVoiceFeedback } from "@/hooks/useVoiceFeedback";
 import { toast } from "sonner";
@@ -125,6 +125,20 @@ export default function WorkoutPage() {
         }
       }
       return;
+    }
+
+    // Wrong movement detection
+    const detectedMovement = detectMovementType(angles);
+    const movementMatches = isMovementMatchingExercise(exercise, detectedMovement);
+
+    if (!movementMatches && detectedMovement) {
+      const movementLabels: Record<string, string> = {
+        shoulder_press: "Shoulder Press", bicep_curl: "Bicep Curl",
+        squat_or_lunge: "Squat/Lunge", pushup: "Push-up", deadlift: "Deadlift",
+      };
+      setFeedback(`⚠ Wrong movement detected: looks like ${movementLabels[detectedMovement] || detectedMovement}. You selected ${info.name}.`);
+      setFeedbackType("error");
+      return; // Don't count reps for wrong movement
     }
 
     // Rep counting with stability filter

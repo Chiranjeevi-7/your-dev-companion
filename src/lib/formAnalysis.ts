@@ -113,40 +113,98 @@ export function detectPlankHold(angles: JointAngles): boolean {
   return hipAvg >= 150 && hipAvg <= 190 && shoulderAvg >= 70;
 }
 
-// Rep detection based on angle thresholds
+// Movement signature detection — returns which exercise the movement looks like
+export function detectMovementType(angles: JointAngles): string | null {
+  const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
+  const shoulderAvg = (angles.leftShoulder + angles.rightShoulder) / 2;
+  const kneeAvg = (angles.leftKnee + angles.rightKnee) / 2;
+  const hipAvg = (angles.leftHip + angles.rightHip) / 2;
+
+  // Shoulder press: shoulders elevated (angle > 90) AND elbows extending overhead
+  if (shoulderAvg > 90 && elbowAvg > 80) return "shoulder_press";
+  // Bicep curl: shoulders low/pinned (< 60) AND elbows flexing
+  if (shoulderAvg < 60 && elbowAvg < 120) return "bicep_curl";
+  // Squat/lunge: knees bending significantly
+  if (kneeAvg < 140) return "squat_or_lunge";
+  // Pushup: elbows bending with hips roughly straight
+  if (elbowAvg < 140 && hipAvg > 140 && hipAvg < 200) return "pushup";
+  // Deadlift: hip hinge with relatively straight knees
+  if (hipAvg < 140 && kneeAvg > 140) return "deadlift";
+
+  return null;
+}
+
+// Check if detected movement matches selected exercise
+export function isMovementMatchingExercise(exercise: string, detectedMovement: string | null): boolean {
+  if (!detectedMovement) return true; // no clear movement = don't warn
+  switch (exercise) {
+    case "squat":
+    case "lunge":
+      return detectedMovement === "squat_or_lunge";
+    case "shoulder_press":
+      return detectedMovement === "shoulder_press";
+    case "bicep_curl":
+      return detectedMovement === "bicep_curl";
+    case "pushup":
+      return detectedMovement === "pushup";
+    case "deadlift":
+      return detectedMovement === "deadlift";
+    default:
+      return true;
+  }
+}
+
+// Rep detection — strictly exercise-specific movement patterns
 export function detectRepPhase(
   exercise: string,
   angles: JointAngles
 ): "up" | "down" | "neutral" {
+  const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
+  const shoulderAvg = (angles.leftShoulder + angles.rightShoulder) / 2;
+  const kneeAvg = (angles.leftKnee + angles.rightKnee) / 2;
+  const hipAvg = (angles.leftHip + angles.rightHip) / 2;
+
   switch (exercise) {
     case "squat":
     case "lunge": {
-      const kneeAvg = (angles.leftKnee + angles.rightKnee) / 2;
-      if (kneeAvg < 110) return "down";
-      if (kneeAvg > 155) return "up";
+      // Only count if knees are actually bending (not just elbow movement)
+      if (kneeAvg < 110 && hipAvg < 140) return "down";
+      if (kneeAvg > 155 && hipAvg > 155) return "up";
       return "neutral";
     }
     case "pushup": {
-      const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
+      // Require hips to stay straight (150-195) — distinguishes from other movements
+      if (hipAvg < 145 || hipAvg > 200) return "neutral";
       if (elbowAvg < 90) return "down";
       if (elbowAvg > 155) return "up";
       return "neutral";
     }
     case "bicep_curl": {
-      const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
+      // Strict: shoulders must stay LOW (pinned to sides, < 50) — this prevents
+      // shoulder press from being counted as curls
+      if (shoulderAvg > 55) return "neutral";
       if (elbowAvg < 50) return "up";
       if (elbowAvg > 140) return "down";
       return "neutral";
     }
-    case "shoulder_press":
+    case "shoulder_press": {
+      // Strict: shoulders must be ELEVATED (> 80) — arms going overhead
+      // This prevents bicep curls from being counted as presses
+      if (shoulderAvg < 75) return "neutral";
+      if (elbowAvg > 160 && shoulderAvg > 140) return "up";
+      if (elbowAvg < 95 && shoulderAvg > 75) return "down";
+      return "neutral";
+    }
     case "lat_pulldown": {
-      const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
+      // Similar to shoulder press but inverted — pulling down
+      if (shoulderAvg < 70) return "neutral";
       if (elbowAvg > 160) return "up";
       if (elbowAvg < 95) return "down";
       return "neutral";
     }
     case "deadlift": {
-      const hipAvg = (angles.leftHip + angles.rightHip) / 2;
+      // Strict: require knees to stay relatively straight (> 130)
+      if (kneeAvg < 120) return "neutral";
       if (hipAvg > 165) return "up";
       if (hipAvg < 100) return "down";
       return "neutral";
