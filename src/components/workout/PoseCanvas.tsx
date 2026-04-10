@@ -20,6 +20,11 @@ interface PoseCanvasProps {
   mlModelReady?: boolean;
   voiceEnabled?: boolean;
   onToggleVoice?: () => void;
+  personLocked?: boolean;
+  lockEnabled?: boolean;
+  personLost?: boolean;
+  onToggleLock?: () => void;
+  onToggleLockMode?: () => void;
 }
 
 export default function PoseCanvas({
@@ -28,6 +33,8 @@ export default function PoseCanvas({
   feedback, feedbackType, fps, error,
   mlResult, mlModelReady,
   voiceEnabled, onToggleVoice,
+  personLocked, lockEnabled, personLost,
+  onToggleLock, onToggleLockMode,
 }: PoseCanvasProps) {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const info = EXERCISES[exercise];
@@ -48,7 +55,7 @@ export default function PoseCanvas({
             <span className="ml-3 text-sm font-mono text-primary animate-pulse">● LIVE</span>
           )}
         </h2>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           {onToggleVoice && (
             <button onClick={onToggleVoice}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
@@ -112,6 +119,7 @@ export default function PoseCanvas({
         </div>
       )}
 
+      {/* Exercise selector + Lock controls */}
       <div className="flex gap-2.5 items-center p-3.5 border-b border-border bg-secondary flex-wrap">
         <select value={exercise} onChange={e => onChangeExercise(e.target.value)}
           className="flex-1 min-w-[160px] px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm outline-none">
@@ -122,6 +130,26 @@ export default function PoseCanvas({
         <button onClick={onLogSet} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-all">
           ✓ Log Set
         </button>
+        {isWebcamActive && onToggleLock && (
+          <button onClick={onToggleLock}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+              personLocked
+                ? "bg-primary/15 text-primary border border-primary/30"
+                : "bg-muted text-muted-foreground border border-border"
+            }`}>
+            {personLocked ? "🔒 Locked" : "🔓 Lock Person"}
+          </button>
+        )}
+        {isWebcamActive && onToggleLockMode && (
+          <button onClick={onToggleLockMode}
+            className={`px-2.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+              lockEnabled
+                ? "bg-accent/15 text-accent-foreground border border-accent/30"
+                : "bg-muted text-muted-foreground border border-border"
+            }`}>
+            {lockEnabled ? "Auto-Lock ON" : "Auto-Lock OFF"}
+          </button>
+        )}
       </div>
 
       <div className="relative bg-[hsl(240,50%,3%)] aspect-[4/3] flex items-center justify-center">
@@ -137,6 +165,18 @@ export default function PoseCanvas({
         {isWebcamActive && (
           <div className="absolute top-3 right-3 bg-card/80 backdrop-blur-sm rounded-lg px-2.5 py-1 text-xs font-mono text-primary z-10">
             {fps} FPS
+          </div>
+        )}
+
+        {/* Person lock status */}
+        {isWebcamActive && personLocked && !personLost && (
+          <div className="absolute bottom-3 right-3 bg-primary/70 backdrop-blur-sm rounded-lg px-2.5 py-1 text-[10px] font-bold text-primary-foreground z-10">
+            🔒 Person Locked
+          </div>
+        )}
+        {isWebcamActive && personLost && (
+          <div className="absolute bottom-3 right-3 bg-destructive/90 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs font-bold text-destructive-foreground z-10 animate-pulse">
+            ⚠ Locked person lost — move back into frame
           </div>
         )}
 
