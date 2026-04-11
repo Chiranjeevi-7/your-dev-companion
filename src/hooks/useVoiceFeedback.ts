@@ -20,18 +20,11 @@ const POSITIVE_MESSAGES = [
   "You're crushing it!",
 ];
 
-const MOVEMENT_LABELS: Record<string, string> = {
-  shoulder_press: "shoulder press",
-  bicep_curl: "bicep curl",
-  squat_or_lunge: "squat or lunge",
-  pushup: "push-up",
-  deadlift: "deadlift",
-};
 
 export function useVoiceFeedback(enabled: boolean, active: boolean) {
   const lastSpoke = useRef(0);
   const lastPositive = useRef(0);
-  const lastWrongMovement = useRef(0);
+  
   const synthRef = useRef(typeof window !== "undefined" ? window.speechSynthesis : null);
 
   const speak = useCallback((text: string) => {
@@ -45,15 +38,9 @@ export function useVoiceFeedback(enabled: boolean, active: boolean) {
     synth.speak(utt);
   }, [enabled, active]);
 
-  const processWrongMovement = useCallback((detectedMovement: string, selectedExercise: string) => {
-    if (!enabled || !active) return;
-    const now = Date.now();
-    if (now - lastWrongMovement.current < 6000) return;
-    const label = MOVEMENT_LABELS[detectedMovement] || detectedMovement;
-    speak(`Wrong exercise. This looks like ${label}.`);
-    lastWrongMovement.current = now;
-    lastSpoke.current = now;
-  }, [enabled, active, speak]);
+  const processWrongMovement = useCallback((_detectedMovement: string, _selectedExercise: string) => {
+    // No-op: wrong exercise voice warnings removed
+  }, []);
 
   const process = useCallback((mlResult: MLFormResult | null) => {
     if (!mlResult || !enabled || !active) return;
