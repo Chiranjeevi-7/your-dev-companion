@@ -8,7 +8,6 @@ interface PoseCanvasProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   exercise: string;
   onChangeExercise: (ex: string) => void;
-  onLogSet: () => void;
   isWebcamActive: boolean;
   isModelLoaded: boolean;
   onToggleCamera: () => void;
@@ -25,16 +24,20 @@ interface PoseCanvasProps {
   personLost?: boolean;
   onToggleLock?: () => void;
   onToggleLockMode?: () => void;
+  workoutActive?: boolean;
+  inCooldown?: boolean;
+  onConfigure?: () => void;
 }
 
 export default function PoseCanvas({
-  canvasRef, videoRef, exercise, onChangeExercise, onLogSet,
+  canvasRef, videoRef, exercise, onChangeExercise,
   isWebcamActive, isModelLoaded, onToggleCamera,
   feedback, feedbackType, fps, error,
   mlResult, mlModelReady,
   voiceEnabled, onToggleVoice,
   personLocked, lockEnabled, personLost,
   onToggleLock, onToggleLockMode,
+  workoutActive, inCooldown, onConfigure,
 }: PoseCanvasProps) {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const info = EXERCISES[exercise];
@@ -119,17 +122,21 @@ export default function PoseCanvas({
         </div>
       )}
 
-      {/* Exercise selector + Lock controls */}
+      {/* Exercise selector + Configure + Lock controls */}
       <div className="flex gap-2.5 items-center p-3.5 border-b border-border bg-secondary flex-wrap">
         <select value={exercise} onChange={e => onChangeExercise(e.target.value)}
-          className="flex-1 min-w-[160px] px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm outline-none">
+          disabled={workoutActive}
+          className="flex-1 min-w-[160px] px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm outline-none disabled:opacity-60 disabled:cursor-not-allowed">
           {Object.entries(EXERCISES).map(([key, ex]) => (
             <option key={key} value={key}>{ex.name}</option>
           ))}
         </select>
-        <button onClick={onLogSet} className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-all">
-          ✓ Log Set
-        </button>
+        {onConfigure && (
+          <button onClick={onConfigure}
+            className="px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-all">
+            {workoutActive ? (inCooldown ? "🧘 Resting" : "● Workout Active") : "⚙ Configure & Start"}
+          </button>
+        )}
         {isWebcamActive && onToggleLock && (
           <button onClick={onToggleLock}
             className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
