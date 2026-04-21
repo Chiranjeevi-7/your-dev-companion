@@ -84,10 +84,23 @@ export function usePoseDetection(
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
+      try { videoRef.current.pause(); } catch {}
+      videoRef.current.removeAttribute("src");
+      videoRef.current.load();
     }
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    setState(s => ({ ...s, isWebcamActive: false, landmarks: null }));
-  }, [videoRef]);
+    // Fully clear canvas + reset to placeholder dimensions
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = 640;
+      canvas.height = 480;
+    }
+    fpsCountRef.current = 0;
+    lastTimeRef.current = 0;
+    setState(s => ({ ...s, isWebcamActive: false, landmarks: null, fps: 0 }));
+  }, [videoRef, canvasRef]);
 
   const detectFrame = useCallback(() => {
     const video = videoRef.current;
