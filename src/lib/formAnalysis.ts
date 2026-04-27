@@ -117,6 +117,67 @@ function analyzeShoulderPress(a: JointAngles): FormCheck {
   return { message: "✓ Good press — keep core braced", type: "good" };
 }
 
+function analyzeFrontRaise(a: JointAngles): FormCheck {
+  const shoulderAvg = (a.leftShoulder + a.rightShoulder) / 2;
+  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
+  if (shoulderAvg > 110) return { message: "⚠ Raising too high — stop at shoulder level (~90°)", type: "warning" };
+  if (elbowAvg < 140) return { message: "⚠ Bending elbows too much — keep arms nearly straight", type: "warning" };
+  if (Math.abs(a.leftShoulder - a.rightShoulder) > 18) return { message: "⚠ Asymmetric raise — match both arm heights", type: "warning" };
+  if (shoulderAvg > 75 && shoulderAvg < 100) return { message: "✓ Perfect height — arms parallel to floor", type: "good" };
+  if (shoulderAvg < 25) return { message: "✓ Controlled return — reset for next rep", type: "good" };
+  return { message: "✓ Good front raise — slow and controlled", type: "good" };
+}
+
+function analyzeLateralRaise(a: JointAngles): FormCheck {
+  const shoulderAvg = (a.leftShoulder + a.rightShoulder) / 2;
+  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
+  if (shoulderAvg > 110) return { message: "⚠ Raising above shoulder — risk of impingement", type: "warning" };
+  if (elbowAvg < 130) return { message: "⚠ Elbows bending too much — keep slight bend only", type: "warning" };
+  if (Math.abs(a.leftShoulder - a.rightShoulder) > 18) return { message: "⚠ Uneven raise — balance both arms", type: "warning" };
+  if (shoulderAvg > 75 && shoulderAvg < 100) return { message: "✓ Arms at shoulder height — perfect lateral raise", type: "good" };
+  return { message: "✓ Good lateral raise — keep traps relaxed", type: "good" };
+}
+
+function analyzeDoubleArmRow(a: JointAngles): FormCheck {
+  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
+  const hipAvg = (a.leftHip + a.rightHip) / 2;
+  if (hipAvg < 70) return { message: "⚠ Rounded back — chest up, neutral spine!", type: "error" };
+  if (hipAvg > 150) return { message: "⚠ Standing too tall — hinge at hips ~45°", type: "warning" };
+  if (Math.abs(a.leftElbow - a.rightElbow) > 20) return { message: "⚠ Uneven row — pull both elbows evenly", type: "warning" };
+  if (elbowAvg < 70) return { message: "✓ Strong contraction — squeeze shoulder blades!", type: "good" };
+  if (elbowAvg > 160) return { message: "✓ Full stretch at the bottom", type: "good" };
+  return { message: "✓ Good row — drive elbows back, not up", type: "good" };
+}
+
+function analyzeSingleArmRow(a: JointAngles): FormCheck {
+  const workingElbow = Math.min(a.leftElbow, a.rightElbow);
+  const hipAvg = (a.leftHip + a.rightHip) / 2;
+  if (hipAvg < 70) return { message: "⚠ Spine rounding — keep back flat", type: "error" };
+  if (workingElbow < 60) return { message: "✓ Full retraction — elbow tight to ribs!", type: "good" };
+  if (workingElbow > 160) return { message: "✓ Full stretch — controlled lower", type: "good" };
+  return { message: "✓ Good single-arm row — keep torso square", type: "good" };
+}
+
+function analyzeHammerCurl(a: JointAngles): FormCheck {
+  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
+  const shoulderAvg = (a.leftShoulder + a.rightShoulder) / 2;
+  if (shoulderAvg > 50) return { message: "⚠ Elbows drifting forward — pin them at sides", type: "warning" };
+  if (Math.abs(a.leftElbow - a.rightElbow) > 20) return { message: "⚠ Uneven curl — match both arms", type: "warning" };
+  if (elbowAvg < 45) return { message: "✓ Full contraction — squeeze biceps!", type: "good" };
+  if (elbowAvg > 160) return { message: "✓ Full extension — controlled eccentric", type: "good" };
+  return { message: "✓ Good hammer curl — neutral grip, steady tempo", type: "good" };
+}
+
+function analyzeOverheadTricep(a: JointAngles): FormCheck {
+  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
+  const shoulderAvg = (a.leftShoulder + a.rightShoulder) / 2;
+  if (shoulderAvg < 130) return { message: "⚠ Upper arms dropping — keep them vertical overhead", type: "warning" };
+  if (Math.abs(a.leftElbow - a.rightElbow) > 20) return { message: "⚠ Uneven extension — balance both arms", type: "warning" };
+  if (elbowAvg < 70) return { message: "✓ Deep stretch — full ROM behind head", type: "good" };
+  if (elbowAvg > 160) return { message: "✓ Full lockout — squeeze triceps!", type: "good" };
+  return { message: "✓ Good tricep extension — only forearms move", type: "good" };
+}
+
 // Plank hold detection — returns true when body is in valid plank position
 export function detectPlankHold(angles: JointAngles): boolean {
   const hipAvg = (angles.leftHip + angles.rightHip) / 2;
