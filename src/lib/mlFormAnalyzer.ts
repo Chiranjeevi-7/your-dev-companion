@@ -332,10 +332,14 @@ class MLFormAnalyzer {
         else { formScore = 93; confidence = 88; }
         break;
 
-      case "bicep_curl":
-        if (shoulderAvg > 50) { errorClass = "elbow_flare"; formScore = 50; confidence = 80; }
-        else if (elbowAvg < 40) { formScore = 95; confidence = 85; }
+      case "bicep_curl": {
+        // Single OR double arm: evaluate the working (more flexed) arm.
+        const workingElbow = Math.min(f.leftElbow, f.rightElbow);
+        const workingShoulder = Math.min(f.leftShoulder, f.rightShoulder);
+        if (workingShoulder > 50) { errorClass = "elbow_flare"; formScore = 50; confidence = 80; }
+        else if (workingElbow < 40) { formScore = 95; confidence = 85; }
         break;
+      }
 
       case "shoulder_press":
         if (elbowAvg < 80) { errorClass = "shallow_depth"; formScore = 55; injuryRisk = "medium"; confidence = 78; }
@@ -350,19 +354,34 @@ class MLFormAnalyzer {
         else if (shoulderAvg > 75 && shoulderAvg < 100) { formScore = 93; confidence = 87; }
         break;
 
-      case "double_arm_row":
-      case "single_arm_row":
-        if (hipAvg < 70) { errorClass = "rounded_back"; formScore = 30; injuryRisk = "high"; confidence = 90; }
+      case "double_arm_row": {
+        // Standing bent-over: hinge ~70-150°
+        const workingElbow = Math.min(f.leftElbow, f.rightElbow);
+        if (hipAvg < 60) { errorClass = "rounded_back"; formScore = 35; injuryRisk = "high"; confidence = 88; }
         else if (hipAvg > 160) { errorClass = "shallow_depth"; formScore = 55; confidence = 78; }
-        else if (elbowAsym > 20 && f.exercise === "double_arm_row") { errorClass = "asymmetric_movement"; formScore = 55; confidence = 80; }
-        else if (elbowAvg < 80) { formScore = 92; confidence = 85; }
+        else if (elbowAsym > 25 && f.leftElbow > 30 && f.rightElbow > 30) {
+          errorClass = "asymmetric_movement"; formScore = 55; confidence = 78;
+        }
+        else if (workingElbow < 80) { formScore = 92; confidence = 85; }
         break;
+      }
 
-      case "hammer_curl":
-        if (shoulderAvg > 50) { errorClass = "elbow_flare"; formScore = 50; confidence = 80; }
-        else if (elbowAsym > 20) { errorClass = "asymmetric_movement"; formScore = 60; confidence = 78; }
-        else if (elbowAvg < 45) { formScore = 94; confidence = 86; }
+      case "single_arm_row": {
+        // Bench-supported: torso near horizontal → hipAvg LOW (~25-100)
+        const workingElbow = Math.min(f.leftElbow, f.rightElbow);
+        if (hipAvg > 110) { errorClass = "shallow_depth"; formScore = 55; confidence = 75; }
+        else if (workingElbow < 65) { formScore = 93; confidence = 86; }
         break;
+      }
+
+      case "hammer_curl": {
+        // Single OR double arm support
+        const workingElbow = Math.min(f.leftElbow, f.rightElbow);
+        const workingShoulder = Math.min(f.leftShoulder, f.rightShoulder);
+        if (workingShoulder > 50) { errorClass = "elbow_flare"; formScore = 50; confidence = 80; }
+        else if (workingElbow < 45) { formScore = 94; confidence = 86; }
+        break;
+      }
 
       case "overhead_tricep_extension":
         if (shoulderAvg < 130) { errorClass = "elbow_flare"; formScore = 50; injuryRisk = "medium"; confidence = 82; }
