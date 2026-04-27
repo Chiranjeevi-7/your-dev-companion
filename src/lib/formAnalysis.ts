@@ -282,6 +282,49 @@ export function detectRepPhase(
       if (hipAvg < 100) return "down";
       return "neutral";
     }
+    case "shoulder_front_raise": {
+      // Arms move from down (~10°) to forward (~90°). Elbows stay extended.
+      if (elbowAvg < 130) return "neutral"; // bent elbows = not a clean front raise
+      if (shoulderAvg > 75 && shoulderAvg < 110) return "up";
+      if (shoulderAvg < 30) return "down";
+      return "neutral";
+    }
+    case "lateral_raise": {
+      // Same threshold as front raise but distinct exercise — arms abduct sideways
+      if (elbowAvg < 120) return "neutral";
+      if (shoulderAvg > 75 && shoulderAvg < 110) return "up";
+      if (shoulderAvg < 30) return "down";
+      return "neutral";
+    }
+    case "double_arm_row": {
+      // Hip-hinge position required (hipAvg 70-150). Elbows flex from extended to retracted.
+      if (hipAvg > 160 || hipAvg < 60) return "neutral";
+      if (elbowAvg < 80) return "up"; // pulled in
+      if (elbowAvg > 150) return "down"; // arms hanging
+      return "neutral";
+    }
+    case "single_arm_row": {
+      // Use the working (more flexed) elbow
+      const workingElbow = Math.min(angles.leftElbow, angles.rightElbow);
+      if (hipAvg > 160 || hipAvg < 60) return "neutral";
+      if (workingElbow < 70) return "up";
+      if (workingElbow > 150) return "down";
+      return "neutral";
+    }
+    case "hammer_curl": {
+      // Same kinematic pattern as bicep curl — elbows pinned, flexion only
+      if (shoulderAvg > 55) return "neutral";
+      if (elbowAvg < 50) return "up";
+      if (elbowAvg > 140) return "down";
+      return "neutral";
+    }
+    case "overhead_tricep_extension": {
+      // Upper arms vertical (shoulderAvg high, ~150+). Forearms flex/extend.
+      if (shoulderAvg < 130) return "neutral"; // arms not overhead
+      if (elbowAvg < 80) return "down"; // weight behind head
+      if (elbowAvg > 155) return "up"; // locked out
+      return "neutral";
+    }
     default:
       return "neutral";
   }
