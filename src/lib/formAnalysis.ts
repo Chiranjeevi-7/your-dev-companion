@@ -262,11 +262,16 @@ export function detectRepPhase(
       return "neutral";
     }
     case "bicep_curl": {
-      // Strict: shoulders must stay LOW (pinned to sides, < 50) — this prevents
-      // shoulder press from being counted as curls
-      if (shoulderAvg > 55) return "neutral";
-      if (elbowAvg < 50) return "up";
-      if (elbowAvg > 140) return "down";
+      // Single OR double arm: track the working (more flexed) arm.
+      // Use the same arm's shoulder for the "elbow pinned" check so we don't
+      // get confused when one arm rests at the side (shoulder ~5°) while the
+      // other curls. This also makes side-view detection robust.
+      const workingArm = angles.leftElbow <= angles.rightElbow ? "left" : "right";
+      const workingElbow = workingArm === "left" ? angles.leftElbow : angles.rightElbow;
+      const workingShoulder = workingArm === "left" ? angles.leftShoulder : angles.rightShoulder;
+      if (workingShoulder > 55) return "neutral"; // elbow drifting forward → not a clean curl
+      if (workingElbow < 50) return "up";
+      if (workingElbow > 140) return "down";
       return "neutral";
     }
     case "shoulder_press": {
@@ -306,25 +311,31 @@ export function detectRepPhase(
       return "neutral";
     }
     case "double_arm_row": {
-      // Hip-hinge position required (hipAvg 70-150). Elbows flex from extended to retracted.
+      // Standing bent-over row. Torso hinged ~45° → hipAvg roughly 70-150.
+      // Track the working (more flexed) elbow — works for side view too.
+      const workingElbow = Math.min(angles.leftElbow, angles.rightElbow);
       if (hipAvg > 160 || hipAvg < 60) return "neutral";
-      if (elbowAvg < 80) return "up"; // pulled in
-      if (elbowAvg > 150) return "down"; // arms hanging
+      if (workingElbow < 80) return "up"; // pulled in
+      if (workingElbow > 150) return "down"; // arms hanging
       return "neutral";
     }
     case "single_arm_row": {
-      // Use the working (more flexed) elbow
+      // Bench-supported: torso nearly horizontal → hipAvg LOW (~25-100).
+      // Working arm = more flexed; other arm braces (extended on bench).
       const workingElbow = Math.min(angles.leftElbow, angles.rightElbow);
-      if (hipAvg > 160 || hipAvg < 60) return "neutral";
-      if (workingElbow < 70) return "up";
+      if (hipAvg > 110) return "neutral"; // standing too upright → not bench row
+      if (workingElbow < 65) return "up";
       if (workingElbow > 150) return "down";
       return "neutral";
     }
     case "hammer_curl": {
-      // Same kinematic pattern as bicep curl — elbows pinned, flexion only
-      if (shoulderAvg > 55) return "neutral";
-      if (elbowAvg < 50) return "up";
-      if (elbowAvg > 140) return "down";
+      // Same kinematics as bicep curl — supports single OR double arm
+      const workingArm = angles.leftElbow <= angles.rightElbow ? "left" : "right";
+      const workingElbow = workingArm === "left" ? angles.leftElbow : angles.rightElbow;
+      const workingShoulder = workingArm === "left" ? angles.leftShoulder : angles.rightShoulder;
+      if (workingShoulder > 55) return "neutral";
+      if (workingElbow < 50) return "up";
+      if (workingElbow > 140) return "down";
       return "neutral";
     }
     case "overhead_tricep_extension": {
