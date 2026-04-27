@@ -41,10 +41,34 @@ export const EXERCISES: Record<string, {
     name: "Lat Pulldown", muscle: "Back", defaultReps: 10, defaultSets: 3,
     camera: { angle: "front", distance: "6–8 ft (2–2.5m)", height: "Chest height (4 ft / 120cm)", tip: "Front view captures elbow tuck and bar path. Ensure upper body and arms are fully in frame." },
   },
+  shoulder_front_raise: {
+    name: "Shoulder Front Raise", muscle: "Shoulders", defaultReps: 12, defaultSets: 3,
+    camera: { angle: "side", distance: "6–8 ft (2–2.5m)", height: "Chest height (4 ft / 120cm)", tip: "Side view detects shoulder flexion height and prevents swinging. Raise arms straight forward to shoulder level — no higher." },
+  },
+  lateral_raise: {
+    name: "Shoulder Lateral Raise", muscle: "Shoulders", defaultReps: 12, defaultSets: 3,
+    camera: { angle: "front", distance: "6–8 ft (2–2.5m)", height: "Chest height (4 ft / 120cm)", tip: "Front view captures arm symmetry and shoulder abduction. Lift arms out to sides to shoulder height — keep slight elbow bend." },
+  },
+  double_arm_row: {
+    name: "Double Arm Row", muscle: "Back", defaultReps: 10, defaultSets: 3,
+    camera: { angle: "side", distance: "7–9 ft (2–2.7m)", height: "Waist height (3 ft / 90cm)", tip: "Side view tracks hip hinge angle and elbow drive. Keep torso roughly 45° forward — pull elbows back past torso." },
+  },
+  single_arm_row: {
+    name: "Single Arm Row", muscle: "Back", defaultReps: 10, defaultSets: 3, side: true,
+    camera: { angle: "side", distance: "6–8 ft (2–2.5m)", height: "Waist height (3 ft / 90cm)", tip: "Side view tracks rowing arm path. Brace with opposite hand on bench — pull elbow tight along ribs." },
+  },
+  hammer_curl: {
+    name: "Hammer Curl", muscle: "Arms", defaultReps: 12, defaultSets: 3,
+    camera: { angle: "front", distance: "5–7 ft (1.5–2m)", height: "Chest height (4 ft / 120cm)", tip: "Front view tracks neutral grip path and elbow pinning. Palms face inward (thumbs up) throughout the curl." },
+  },
+  overhead_tricep_extension: {
+    name: "Overhead Tricep Extension", muscle: "Arms", defaultReps: 12, defaultSets: 3,
+    camera: { angle: "side", distance: "6–8 ft (2–2.5m)", height: "Chest height (4 ft / 120cm)", tip: "Side view detects elbow flare and full extension overhead. Keep upper arms vertical — only forearms move." },
+  },
 };
 
 export const TIMED_EXERCISES = ["plank"];
-export const SIDE_EXERCISES = ["lunge", "bicep_curl"];
+export const SIDE_EXERCISES = ["lunge", "bicep_curl", "single_arm_row"];
 
 export const FORM_FEEDBACK: Record<string, string[]> = {
   squat: [
@@ -67,6 +91,36 @@ export const FORM_FEEDBACK: Record<string, string[]> = {
     "✓ Neutral spine — perfect position",
     "⚠ Hips rising — lower them down",
     "✓ Solid hold — breathe steadily",
+  ],
+  shoulder_front_raise: [
+    "✓ Arms parallel to floor — perfect height",
+    "⚠ Raising too high — stop at shoulder level",
+    "⚠ Using momentum — slow the tempo",
+  ],
+  lateral_raise: [
+    "✓ Symmetric raise — both arms aligned",
+    "⚠ Elbows bending too much — keep slight bend only",
+    "⚠ Shrugging shoulders — keep traps relaxed",
+  ],
+  double_arm_row: [
+    "✓ Strong elbow drive — squeezing shoulder blades",
+    "⚠ Torso rising — maintain hip hinge",
+    "⚠ Rounded back — chest up, neutral spine",
+  ],
+  single_arm_row: [
+    "✓ Elbow tracking tight to ribs — great form",
+    "⚠ Twisting torso — keep shoulders square",
+    "✓ Full retraction at the top",
+  ],
+  hammer_curl: [
+    "✓ Elbows pinned — pure bicep work",
+    "⚠ Swinging the weight — control the eccentric",
+    "✓ Full contraction at the top",
+  ],
+  overhead_tricep_extension: [
+    "✓ Upper arms vertical — isolating triceps",
+    "⚠ Elbows flaring out — tuck them in",
+    "⚠ Lower the weight further behind head",
   ],
   default: [
     "✓ Good form detected",

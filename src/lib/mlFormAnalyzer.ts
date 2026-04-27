@@ -342,6 +342,33 @@ class MLFormAnalyzer {
         else if (elbowAsym > 20) { errorClass = "asymmetric_movement"; formScore = 55; confidence = 80; }
         else if (shoulderAvg > 170) { formScore = 92; confidence = 86; }
         break;
+
+      case "shoulder_front_raise":
+      case "lateral_raise":
+        if (shoulderAvg > 110) { errorClass = "shallow_depth"; formScore = 55; injuryRisk = "medium"; confidence = 80; }
+        else if (Math.abs(f.leftShoulder - f.rightShoulder) > 18) { errorClass = "asymmetric_movement"; formScore = 55; confidence = 82; }
+        else if (shoulderAvg > 75 && shoulderAvg < 100) { formScore = 93; confidence = 87; }
+        break;
+
+      case "double_arm_row":
+      case "single_arm_row":
+        if (hipAvg < 70) { errorClass = "rounded_back"; formScore = 30; injuryRisk = "high"; confidence = 90; }
+        else if (hipAvg > 160) { errorClass = "shallow_depth"; formScore = 55; confidence = 78; }
+        else if (elbowAsym > 20 && f.exercise === "double_arm_row") { errorClass = "asymmetric_movement"; formScore = 55; confidence = 80; }
+        else if (elbowAvg < 80) { formScore = 92; confidence = 85; }
+        break;
+
+      case "hammer_curl":
+        if (shoulderAvg > 50) { errorClass = "elbow_flare"; formScore = 50; confidence = 80; }
+        else if (elbowAsym > 20) { errorClass = "asymmetric_movement"; formScore = 60; confidence = 78; }
+        else if (elbowAvg < 45) { formScore = 94; confidence = 86; }
+        break;
+
+      case "overhead_tricep_extension":
+        if (shoulderAvg < 130) { errorClass = "elbow_flare"; formScore = 50; injuryRisk = "medium"; confidence = 82; }
+        else if (elbowAsym > 20) { errorClass = "asymmetric_movement"; formScore = 55; confidence = 80; }
+        else if (elbowAvg < 70) { formScore = 93; confidence = 86; }
+        break;
     }
 
     // Fatigue penalty
