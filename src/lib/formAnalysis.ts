@@ -32,6 +32,18 @@ export function analyzeForm(exercise: string, angles: JointAngles): FormCheck {
       return analyzeBicepCurl(angles);
     case "shoulder_press":
       return analyzeShoulderPress(angles);
+    case "shoulder_front_raise":
+      return analyzeFrontRaise(angles);
+    case "lateral_raise":
+      return analyzeLateralRaise(angles);
+    case "double_arm_row":
+      return analyzeDoubleArmRow(angles);
+    case "single_arm_row":
+      return analyzeSingleArmRow(angles);
+    case "hammer_curl":
+      return analyzeHammerCurl(angles);
+    case "overhead_tricep_extension":
+      return analyzeOverheadTricep(angles);
     default:
       return { message: "✓ Tracking your movement — maintain control", type: "good" };
   }
