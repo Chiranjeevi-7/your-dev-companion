@@ -176,6 +176,8 @@ function analyzeHammerCurl(a: JointAngles): FormCheck {
   if (workingElbow > 160) return { message: "✓ Full extension — controlled eccentric", type: "good" };
   return { message: "✓ Good hammer curl — neutral grip, steady tempo", type: "good" };
 }
+
+function analyzeOverheadTricep(a: JointAngles): FormCheck {
   const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
   const shoulderAvg = (a.leftShoulder + a.rightShoulder) / 2;
   if (shoulderAvg < 130) return { message: "⚠ Upper arms dropping — keep them vertical overhead", type: "warning" };
