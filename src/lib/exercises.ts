@@ -31,7 +31,7 @@ export const EXERCISES: Record<string, {
   },
   bicep_curl: {
     name: "Bicep Curl", muscle: "Arms", defaultReps: 12, defaultSets: 3, side: true,
-    camera: { angle: "front", distance: "5–7 ft (1.5–2m)", height: "Chest height (4 ft / 120cm)", tip: "Front view tracks elbow flare and symmetry between arms. Stand far enough for head-to-waist framing." },
+    camera: { angle: "front", distance: "5–7 ft (1.5–2m)", height: "Chest height (4 ft / 120cm)", tip: "Front OR side view both work. Curl with one OR both arms — AI tracks whichever arm is moving. Keep elbow(s) pinned to your side." },
   },
   shoulder_press: {
     name: "Shoulder Press", muscle: "Shoulders", defaultReps: 10, defaultSets: 3,
@@ -50,16 +50,16 @@ export const EXERCISES: Record<string, {
     camera: { angle: "front", distance: "6–8 ft (2–2.5m)", height: "Chest height (4 ft / 120cm)", tip: "Front view captures arm symmetry and shoulder abduction. Lift arms out to sides to shoulder height — keep slight elbow bend." },
   },
   double_arm_row: {
-    name: "Double Arm Row", muscle: "Back", defaultReps: 10, defaultSets: 3,
-    camera: { angle: "side", distance: "7–9 ft (2–2.7m)", height: "Waist height (3 ft / 90cm)", tip: "Side view tracks hip hinge angle and elbow drive. Keep torso roughly 45° forward — pull elbows back past torso." },
+    name: "Double Arm Row (Standing)", muscle: "Back", defaultReps: 10, defaultSets: 3,
+    camera: { angle: "side", distance: "7–9 ft (2–2.7m)", height: "Waist height (3 ft / 90cm)", tip: "Standing bent-over row with both arms. Hinge at hips ~45°, knees soft. Side OR front view both work — AI auto-detects whichever side is more visible." },
   },
   single_arm_row: {
-    name: "Single Arm Row", muscle: "Back", defaultReps: 10, defaultSets: 3, side: true,
-    camera: { angle: "side", distance: "6–8 ft (2–2.5m)", height: "Waist height (3 ft / 90cm)", tip: "Side view tracks rowing arm path. Brace with opposite hand on bench — pull elbow tight along ribs." },
+    name: "Single Arm Row (Bench)", muscle: "Back", defaultReps: 10, defaultSets: 3, side: true,
+    camera: { angle: "side", distance: "6–8 ft (2–2.5m)", height: "Hip/bench height (~3 ft / 90cm)", tip: "Brace one hand and one knee on a bench (or bed/chair) so torso is nearly parallel to floor. Row the dumbbell with the free arm. Either side works — AI tracks the rowing arm." },
   },
   hammer_curl: {
     name: "Hammer Curl", muscle: "Arms", defaultReps: 12, defaultSets: 3,
-    camera: { angle: "front", distance: "5–7 ft (1.5–2m)", height: "Chest height (4 ft / 120cm)", tip: "Front view tracks neutral grip path and elbow pinning. Palms face inward (thumbs up) throughout the curl." },
+    camera: { angle: "front", distance: "5–7 ft (1.5–2m)", height: "Chest height (4 ft / 120cm)", tip: "Neutral grip (thumbs up). Works with one OR both arms — AI tracks whichever arm is curling. Keep elbow(s) pinned to your side." },
   },
   overhead_tricep_extension: {
     name: "Overhead Tricep Extension", muscle: "Arms", defaultReps: 12, defaultSets: 3,
