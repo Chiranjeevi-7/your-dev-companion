@@ -23,7 +23,7 @@ export default function WorkoutPage() {
   const addLog = useAddWorkoutLog();
 
   // Exercise + workout config
-  const [exercise, setExercise] = useState("squat");
+  const [exercise, setExercise] = useState("pushup");
   const [targetReps, setTargetReps] = useState(12);
   const [targetSets, setTargetSets] = useState(3);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -61,8 +61,14 @@ export default function WorkoutPage() {
   const plankLostFrames = useRef(0);
   const autoLockedRef = useRef(false);
   const lastRepTimeRef = useRef<number>(0);
+  const lastRepCountedAtRef = useRef<number>(0); // cooldown lock between reps
   const repDurationsRef = useRef<number[]>([]);
   const setStartFatigueRef = useRef(10);
+  // Smoothing buffers — moving average to reduce jitter
+  const elbowBufferRef = useRef<number[]>([]);
+  const SMOOTH_WINDOW = 5;
+  const REP_COOLDOWN_MS = 500;
+  const STABLE_FRAMES = 4; // require 4 consecutive matching phase frames
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
