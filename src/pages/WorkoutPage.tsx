@@ -292,7 +292,7 @@ export default function WorkoutPage() {
     if (!movementMatches && detectedMovement) {
       const movementLabels: Record<string, string> = {
         shoulder_press: "Shoulder Press", bicep_curl: "Bicep Curl",
-        squat_or_lunge: "Squat/Lunge", pushup: "Push-up", deadlift: "Deadlift",
+        squat_or_lunge: "Squat/Lunge", pushup: "Push-up",
       };
       setFeedback(`⚠ Wrong movement detected: looks like ${movementLabels[detectedMovement] || detectedMovement}. You selected ${info.name}.`);
       setFeedbackType("error");
