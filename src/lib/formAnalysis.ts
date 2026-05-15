@@ -16,14 +16,42 @@ interface JointAngles {
   rightShoulder: number;
 }
 
-export function analyzeForm(exercise: string, angles: JointAngles): FormCheck {
+// Pick the most visible side for single-side exercises (push-ups, curls).
+// Returns "left" | "right" based on average visibility of shoulder/elbow/wrist.
+export function pickWorkingSide(landmarks: any[] | null): "left" | "right" {
+  if (!landmarks || landmarks.length < 33) return "left";
+  const leftVis =
+    ((landmarks[11]?.visibility ?? 0) +
+      (landmarks[13]?.visibility ?? 0) +
+      (landmarks[15]?.visibility ?? 0)) / 3;
+  const rightVis =
+    ((landmarks[12]?.visibility ?? 0) +
+      (landmarks[14]?.visibility ?? 0) +
+      (landmarks[16]?.visibility ?? 0)) / 3;
+  return rightVis > leftVis ? "right" : "left";
+}
+
+// Check torso (shoulder→hip line) is roughly horizontal — i.e. user is in plank
+// orientation, not standing. Used to validate a real push-up.
+export function isPushupOrientation(landmarks: any[] | null): boolean {
+  if (!landmarks || landmarks.length < 33) return false;
+  const ls = landmarks[11], rs = landmarks[12];
+  const lh = landmarks[23], rh = landmarks[24];
+  if (!ls || !rs || !lh || !rh) return false;
+  // Average shoulder/hip Y in normalized coords (0=top, 1=bottom)
+  const shoulderY = (ls.y + rs.y) / 2;
+  const hipY = (lh.y + rh.y) / 2;
+  // In a push-up, shoulders and hips are roughly at the same height (small Y delta).
+  // In standing, hips are far below shoulders (large Y delta).
+  return Math.abs(shoulderY - hipY) < 0.18;
+}
+
+export function analyzeForm(exercise: string, angles: JointAngles, landmarks?: any[] | null): FormCheck {
   switch (exercise) {
     case "squat":
       return analyzeSquat(angles);
     case "pushup":
-      return analyzePushup(angles);
-    case "deadlift":
-      return analyzeDeadlift(angles);
+      return analyzePushup(angles, landmarks ?? null);
     case "lunge":
       return analyzeLunge(angles);
     case "plank":
@@ -36,10 +64,6 @@ export function analyzeForm(exercise: string, angles: JointAngles): FormCheck {
       return analyzeFrontRaise(angles);
     case "lateral_raise":
       return analyzeLateralRaise(angles);
-    case "double_arm_row":
-      return analyzeDoubleArmRow(angles);
-    case "single_arm_row":
-      return analyzeSingleArmRow(angles);
     case "hammer_curl":
       return analyzeHammerCurl(angles);
     case "overhead_tricep_extension":
@@ -60,25 +84,19 @@ function analyzeSquat(a: JointAngles): FormCheck {
   return { message: "✓ Good squat form — keep chest up", type: "good" };
 }
 
-function analyzePushup(a: JointAngles): FormCheck {
-  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
+function analyzePushup(a: JointAngles, landmarks: any[] | null): FormCheck {
+  // Single-side detection — pick whichever arm is more visible.
+  const side = pickWorkingSide(landmarks);
+  const elbow = side === "left" ? a.leftElbow : a.rightElbow;
   const hipAvg = (a.leftHip + a.rightHip) / 2;
+  const inPlank = landmarks ? isPushupOrientation(landmarks) : true;
 
-  if (hipAvg < 150) return { message: "⚠ Hips sagging — engage core, straighten body", type: "warning" };
-  if (hipAvg > 190) return { message: "⚠ Hips too high — lower them into a straight line", type: "warning" };
-  if (elbowAvg < 70) return { message: "✓ Full range of motion — great depth!", type: "good" };
-  if (elbowAvg > 160) return { message: "✓ Arms fully extended at the top", type: "good" };
-  return { message: "✓ Good push-up form — elbows at 45°", type: "good" };
-}
-
-function analyzeDeadlift(a: JointAngles): FormCheck {
-  const hipAvg = (a.leftHip + a.rightHip) / 2;
-  const kneeAvg = (a.leftKnee + a.rightKnee) / 2;
-
-  if (hipAvg < 80) return { message: "⚠ Lower back rounding detected — keep spine neutral!", type: "error" };
-  if (kneeAvg < 90) return { message: "⚠ Too much knee bend — this isn't a squat", type: "warning" };
-  if (hipAvg > 170) return { message: "✓ Lockout looks good — squeeze glutes at top", type: "good" };
-  return { message: "✓ Hip hinge pattern correct — bar close to body", type: "good" };
+  if (!inPlank) return { message: "⚠ Get into push-up position — torso must be horizontal", type: "warning" };
+  if (hipAvg < 145) return { message: "⚠ Hips sagging — engage core, straighten body", type: "warning" };
+  if (hipAvg > 195) return { message: "⚠ Hips too high — lower them into a straight line", type: "warning" };
+  if (elbow < 100) return { message: "✓ Full range of motion — great depth!", type: "good" };
+  if (elbow > 155) return { message: "✓ Arms fully extended at the top", type: "good" };
+  return { message: "✓ Good push-up form — controlled tempo", type: "good" };
 }
 
 function analyzeLunge(a: JointAngles): FormCheck {
@@ -98,13 +116,12 @@ function analyzePlank(a: JointAngles): FormCheck {
 }
 
 function analyzeBicepCurl(a: JointAngles): FormCheck {
-  // Single OR double arm: use the working (more flexed) arm
   const workingElbow = Math.min(a.leftElbow, a.rightElbow);
   const workingShoulder = Math.min(a.leftShoulder, a.rightShoulder);
 
   if (workingShoulder > 55) return { message: "⚠ Elbow drifting forward — pin it to your side", type: "warning" };
-  if (workingElbow < 40) return { message: "✓ Full contraction — squeeze at the top!", type: "good" };
-  if (workingElbow > 160) return { message: "✓ Full extension — controlled eccentric", type: "good" };
+  if (workingElbow < 55) return { message: "✓ Full contraction — squeeze at the top!", type: "good" };
+  if (workingElbow > 150) return { message: "✓ Full extension — controlled eccentric", type: "good" };
   return { message: "✓ Good curl form — steady tempo", type: "good" };
 }
 
@@ -139,41 +156,12 @@ function analyzeLateralRaise(a: JointAngles): FormCheck {
   return { message: "✓ Good lateral raise — keep traps relaxed", type: "good" };
 }
 
-function analyzeDoubleArmRow(a: JointAngles): FormCheck {
-  // Standing bent-over: hip-hinge ~70-130° (torso angled forward, not horizontal)
-  // Use the more-flexed elbow as "working" reference (covers side view too)
-  const workingElbow = Math.min(a.leftElbow, a.rightElbow);
-  const elbowAvg = (a.leftElbow + a.rightElbow) / 2;
-  const hipAvg = (a.leftHip + a.rightHip) / 2;
-  if (hipAvg < 60) return { message: "⚠ Torso too horizontal — stand up a bit, hinge ~45°", type: "warning" };
-  if (hipAvg > 150) return { message: "⚠ Standing too tall — hinge forward at hips", type: "warning" };
-  // Asymmetry only matters if BOTH sides are visible (both elbows tracked sensibly)
-  if (Math.abs(a.leftElbow - a.rightElbow) > 25 && a.leftElbow > 30 && a.rightElbow > 30) {
-    return { message: "⚠ Uneven row — pull both elbows evenly", type: "warning" };
-  }
-  if (workingElbow < 70) return { message: "✓ Strong contraction — squeeze shoulder blades!", type: "good" };
-  if (elbowAvg > 160) return { message: "✓ Full stretch at the bottom", type: "good" };
-  return { message: "✓ Good standing row — drive elbows back, not up", type: "good" };
-}
-
-function analyzeSingleArmRow(a: JointAngles): FormCheck {
-  // Bench-supported: torso nearly parallel to floor → hipAvg very low (~25-90°)
-  // Working arm = the one rowing (more flexed). Other hand braces on bench (extended).
-  const workingElbow = Math.min(a.leftElbow, a.rightElbow);
-  const hipAvg = (a.leftHip + a.rightHip) / 2;
-  if (hipAvg > 110) return { message: "⚠ Torso too upright — brace on a bench, lean over more", type: "warning" };
-  if (workingElbow < 55) return { message: "✓ Elbow tight to ribs — full retraction!", type: "good" };
-  if (workingElbow > 155) return { message: "✓ Full stretch — controlled lower", type: "good" };
-  return { message: "✓ Good single-arm row — keep torso square, no twist", type: "good" };
-}
-
 function analyzeHammerCurl(a: JointAngles): FormCheck {
-  // Single OR double arm: use the working (more flexed) arm
   const workingElbow = Math.min(a.leftElbow, a.rightElbow);
   const workingShoulder = Math.min(a.leftShoulder, a.rightShoulder);
   if (workingShoulder > 50) return { message: "⚠ Elbow drifting forward — pin it at your side", type: "warning" };
-  if (workingElbow < 45) return { message: "✓ Full contraction — squeeze biceps!", type: "good" };
-  if (workingElbow > 160) return { message: "✓ Full extension — controlled eccentric", type: "good" };
+  if (workingElbow < 65) return { message: "✓ Full contraction — squeeze biceps!", type: "good" };
+  if (workingElbow > 145) return { message: "✓ Full extension — controlled eccentric", type: "good" };
   return { message: "✓ Good hammer curl — neutral grip, steady tempo", type: "good" };
 }
 
@@ -187,38 +175,27 @@ function analyzeOverheadTricep(a: JointAngles): FormCheck {
   return { message: "✓ Good tricep extension — only forearms move", type: "good" };
 }
 
-// Plank hold detection — returns true when body is in valid plank position
 export function detectPlankHold(angles: JointAngles): boolean {
   const hipAvg = (angles.leftHip + angles.rightHip) / 2;
   const shoulderAvg = (angles.leftShoulder + angles.rightShoulder) / 2;
-  // Valid plank: hips between 150-190 (straight line) and shoulders not collapsed
   return hipAvg >= 150 && hipAvg <= 190 && shoulderAvg >= 70;
 }
 
-// Movement signature detection — returns which exercise the movement looks like
 export function detectMovementType(angles: JointAngles): string | null {
   const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
   const shoulderAvg = (angles.leftShoulder + angles.rightShoulder) / 2;
   const kneeAvg = (angles.leftKnee + angles.rightKnee) / 2;
   const hipAvg = (angles.leftHip + angles.rightHip) / 2;
 
-  // Shoulder press: shoulders elevated (angle > 90) AND elbows extending overhead
   if (shoulderAvg > 90 && elbowAvg > 80) return "shoulder_press";
-  // Bicep curl: shoulders low/pinned (< 60) AND elbows flexing
   if (shoulderAvg < 60 && elbowAvg < 120) return "bicep_curl";
-  // Squat/lunge: knees bending significantly
   if (kneeAvg < 140) return "squat_or_lunge";
-  // Pushup: elbows bending with hips roughly straight
   if (elbowAvg < 140 && hipAvg > 140 && hipAvg < 200) return "pushup";
-  // Deadlift: hip hinge with relatively straight knees
-  if (hipAvg < 140 && kneeAvg > 140) return "deadlift";
-
   return null;
 }
 
-// Check if detected movement matches selected exercise
 export function isMovementMatchingExercise(exercise: string, detectedMovement: string | null): boolean {
-  if (!detectedMovement) return true; // no clear movement = don't warn
+  if (!detectedMovement) return true;
   switch (exercise) {
     case "squat":
     case "lunge":
@@ -226,20 +203,24 @@ export function isMovementMatchingExercise(exercise: string, detectedMovement: s
     case "shoulder_press":
       return detectedMovement === "shoulder_press";
     case "bicep_curl":
+    case "hammer_curl":
       return detectedMovement === "bicep_curl";
     case "pushup":
       return detectedMovement === "pushup";
-    case "deadlift":
-      return detectedMovement === "deadlift";
     default:
       return true;
   }
 }
 
-// Rep detection — strictly exercise-specific movement patterns
+/**
+ * Rep phase detection — strictly exercise-specific.
+ * Accepts optional landmarks so single-side exercises (push-up, curls) can
+ * pick the more-visible side, enabling reliable side-view tracking.
+ */
 export function detectRepPhase(
   exercise: string,
-  angles: JointAngles
+  angles: JointAngles,
+  landmarks?: any[] | null
 ): "up" | "down" | "neutral" {
   const elbowAvg = (angles.leftElbow + angles.rightElbow) / 2;
   const shoulderAvg = (angles.leftShoulder + angles.rightShoulder) / 2;
@@ -249,100 +230,68 @@ export function detectRepPhase(
   switch (exercise) {
     case "squat":
     case "lunge": {
-      // Only count if knees are actually bending (not just elbow movement)
       if (kneeAvg < 110 && hipAvg < 140) return "down";
       if (kneeAvg > 155 && hipAvg > 155) return "up";
       return "neutral";
     }
     case "pushup": {
-      // Require hips to stay straight (150-195) — distinguishes from other movements
-      if (hipAvg < 145 || hipAvg > 200) return "neutral";
-      if (elbowAvg < 90) return "down";
-      if (elbowAvg > 155) return "up";
+      // Body alignment: must be in horizontal/plank orientation (not standing)
+      if (landmarks && !isPushupOrientation(landmarks)) return "neutral";
+      // Shoulder–hip horizontality through hip angle (allow generous range)
+      if (hipAvg < 140 || hipAvg > 205) return "neutral";
+
+      // Pick most visible arm — supports side-view detection
+      const side = landmarks ? pickWorkingSide(landmarks) : (angles.leftElbow <= angles.rightElbow ? "left" : "right");
+      const elbow = side === "left" ? angles.leftElbow : angles.rightElbow;
+
+      if (elbow < 110) return "down";
+      if (elbow > 155) return "up";
       return "neutral";
     }
     case "bicep_curl": {
-      // Single OR double arm: track the working (more flexed) arm.
-      // Use the same arm's shoulder for the "elbow pinned" check so we don't
-      // get confused when one arm rests at the side (shoulder ~5°) while the
-      // other curls. This also makes side-view detection robust.
-      const workingArm = angles.leftElbow <= angles.rightElbow ? "left" : "right";
-      const workingElbow = workingArm === "left" ? angles.leftElbow : angles.rightElbow;
-      const workingShoulder = workingArm === "left" ? angles.leftShoulder : angles.rightShoulder;
-      if (workingShoulder > 55) return "neutral"; // elbow drifting forward → not a clean curl
-      if (workingElbow < 50) return "up";
-      if (workingElbow > 140) return "down";
+      const side = landmarks
+        ? pickWorkingSide(landmarks)
+        : (angles.leftElbow <= angles.rightElbow ? "left" : "right");
+      const workingElbow = side === "left" ? angles.leftElbow : angles.rightElbow;
+      const workingShoulder = side === "left" ? angles.leftShoulder : angles.rightShoulder;
+      if (workingShoulder > 55) return "neutral";
+      if (workingElbow < 55) return "up";    // closed
+      if (workingElbow > 150) return "down"; // open
+      return "neutral";
+    }
+    case "hammer_curl": {
+      const side = landmarks
+        ? pickWorkingSide(landmarks)
+        : (angles.leftElbow <= angles.rightElbow ? "left" : "right");
+      const workingElbow = side === "left" ? angles.leftElbow : angles.rightElbow;
+      const workingShoulder = side === "left" ? angles.leftShoulder : angles.rightShoulder;
+      if (workingShoulder > 55) return "neutral";
+      if (workingElbow < 65) return "up";
+      if (workingElbow > 145) return "down";
       return "neutral";
     }
     case "shoulder_press": {
-      // Strict: shoulders must be ELEVATED (> 80) — arms going overhead
-      // This prevents bicep curls from being counted as presses
       if (shoulderAvg < 75) return "neutral";
       if (elbowAvg > 160 && shoulderAvg > 140) return "up";
       if (elbowAvg < 95 && shoulderAvg > 75) return "down";
       return "neutral";
     }
-    case "lat_pulldown": {
-      // Similar to shoulder press but inverted — pulling down
-      if (shoulderAvg < 70) return "neutral";
-      if (elbowAvg > 160) return "up";
-      if (elbowAvg < 95) return "down";
-      return "neutral";
-    }
-    case "deadlift": {
-      // Strict: require knees to stay relatively straight (> 130)
-      if (kneeAvg < 120) return "neutral";
-      if (hipAvg > 165) return "up";
-      if (hipAvg < 100) return "down";
-      return "neutral";
-    }
     case "shoulder_front_raise": {
-      // Arms move from down (~10°) to forward (~90°). Elbows stay extended.
-      if (elbowAvg < 130) return "neutral"; // bent elbows = not a clean front raise
+      if (elbowAvg < 130) return "neutral";
       if (shoulderAvg > 75 && shoulderAvg < 110) return "up";
       if (shoulderAvg < 30) return "down";
       return "neutral";
     }
     case "lateral_raise": {
-      // Same threshold as front raise but distinct exercise — arms abduct sideways
       if (elbowAvg < 120) return "neutral";
       if (shoulderAvg > 75 && shoulderAvg < 110) return "up";
       if (shoulderAvg < 30) return "down";
       return "neutral";
     }
-    case "double_arm_row": {
-      // Standing bent-over row. Torso hinged ~45° → hipAvg roughly 70-150.
-      // Track the working (more flexed) elbow — works for side view too.
-      const workingElbow = Math.min(angles.leftElbow, angles.rightElbow);
-      if (hipAvg > 160 || hipAvg < 60) return "neutral";
-      if (workingElbow < 80) return "up"; // pulled in
-      if (workingElbow > 150) return "down"; // arms hanging
-      return "neutral";
-    }
-    case "single_arm_row": {
-      // Bench-supported: torso nearly horizontal → hipAvg LOW (~25-100).
-      // Working arm = more flexed; other arm braces (extended on bench).
-      const workingElbow = Math.min(angles.leftElbow, angles.rightElbow);
-      if (hipAvg > 110) return "neutral"; // standing too upright → not bench row
-      if (workingElbow < 65) return "up";
-      if (workingElbow > 150) return "down";
-      return "neutral";
-    }
-    case "hammer_curl": {
-      // Same kinematics as bicep curl — supports single OR double arm
-      const workingArm = angles.leftElbow <= angles.rightElbow ? "left" : "right";
-      const workingElbow = workingArm === "left" ? angles.leftElbow : angles.rightElbow;
-      const workingShoulder = workingArm === "left" ? angles.leftShoulder : angles.rightShoulder;
-      if (workingShoulder > 55) return "neutral";
-      if (workingElbow < 50) return "up";
-      if (workingElbow > 140) return "down";
-      return "neutral";
-    }
     case "overhead_tricep_extension": {
-      // Upper arms vertical (shoulderAvg high, ~150+). Forearms flex/extend.
-      if (shoulderAvg < 130) return "neutral"; // arms not overhead
-      if (elbowAvg < 80) return "down"; // weight behind head
-      if (elbowAvg > 155) return "up"; // locked out
+      if (shoulderAvg < 130) return "neutral";
+      if (elbowAvg < 80) return "down";
+      if (elbowAvg > 155) return "up";
       return "neutral";
     }
     default:
