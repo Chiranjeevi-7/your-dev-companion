@@ -23,7 +23,7 @@ export default function WorkoutPage() {
   const addLog = useAddWorkoutLog();
 
   // Exercise + workout config
-  const [exercise, setExercise] = useState("squat");
+  const [exercise, setExercise] = useState("pushup");
   const [targetReps, setTargetReps] = useState(12);
   const [targetSets, setTargetSets] = useState(3);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -61,8 +61,14 @@ export default function WorkoutPage() {
   const plankLostFrames = useRef(0);
   const autoLockedRef = useRef(false);
   const lastRepTimeRef = useRef<number>(0);
+  const lastRepCountedAtRef = useRef<number>(0); // cooldown lock between reps
   const repDurationsRef = useRef<number[]>([]);
   const setStartFatigueRef = useRef(10);
+  // Smoothing buffers — moving average to reduce jitter
+  const elbowBufferRef = useRef<number[]>([]);
+  const SMOOTH_WINDOW = 5;
+  const REP_COOLDOWN_MS = 500;
+  const STABLE_FRAMES = 4; // require 4 consecutive matching phase frames
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -211,7 +217,28 @@ export default function WorkoutPage() {
     const angles = getJointAngles(pose.landmarks);
     if (!angles) return;
 
-    const check = analyzeForm(exercise, angles);
+    // ---- Smoothing: moving-average elbow angles to suppress jitter ----
+    const elbowAvgRaw = (angles.leftElbow + angles.rightElbow) / 2;
+    elbowBufferRef.current.push(elbowAvgRaw);
+    if (elbowBufferRef.current.length > SMOOTH_WINDOW) elbowBufferRef.current.shift();
+    const smoothedElbow =
+      elbowBufferRef.current.reduce((s, v) => s + v, 0) / elbowBufferRef.current.length;
+    // Velocity filter: ignore wild jumps (>40° between frames) — pose jitter
+    if (
+      elbowBufferRef.current.length >= 2 &&
+      Math.abs(elbowAvgRaw - elbowBufferRef.current[elbowBufferRef.current.length - 2]) > 40
+    ) {
+      return; // skip frame
+    }
+    // Apply smoothed elbow back to both sides proportionally
+    const elbowDelta = smoothedElbow - elbowAvgRaw;
+    const smoothAngles = {
+      ...angles,
+      leftElbow: angles.leftElbow + elbowDelta,
+      rightElbow: angles.rightElbow + elbowDelta,
+    };
+
+    const check = analyzeForm(exercise, smoothAngles, pose.landmarks);
     setFeedback(check.message);
     setFeedbackType(check.type);
 
@@ -265,15 +292,15 @@ export default function WorkoutPage() {
     if (!movementMatches && detectedMovement) {
       const movementLabels: Record<string, string> = {
         shoulder_press: "Shoulder Press", bicep_curl: "Bicep Curl",
-        squat_or_lunge: "Squat/Lunge", pushup: "Push-up", deadlift: "Deadlift",
+        squat_or_lunge: "Squat/Lunge", pushup: "Push-up",
       };
       setFeedback(`⚠ Wrong movement detected: looks like ${movementLabels[detectedMovement] || detectedMovement}. You selected ${info.name}.`);
       setFeedbackType("error");
       return;
     }
 
-    // Auto rep counting with stability filter
-    const phase = detectRepPhase(exercise, angles);
+    // Auto rep counting with stability filter + cooldown lock
+    const phase = detectRepPhase(exercise, smoothAngles, pose.landmarks);
     if (phase !== "neutral") {
       if (phase === stablePhase.current) {
         phaseFrameCount.current++;
@@ -281,21 +308,26 @@ export default function WorkoutPage() {
         stablePhase.current = phase;
         phaseFrameCount.current = 1;
       }
-      if (phaseFrameCount.current >= 3) {
+      if (phaseFrameCount.current >= STABLE_FRAMES) {
         if (lastPhase.current === "down" && phase === "up") {
-          // Completed one rep
           const now = performance.now();
+          // Rep cooldown lock — prevents double counts from micro-oscillation
+          if (now - lastRepCountedAtRef.current < REP_COOLDOWN_MS) {
+            // ignore but still update lastPhase so we don't get stuck
+            lastPhase.current = phase;
+            return;
+          }
+          lastRepCountedAtRef.current = now;
+
           let speedFatigue = 0;
           if (lastRepTimeRef.current > 0) {
-            const dt = (now - lastRepTimeRef.current) / 1000; // sec
+            const dt = (now - lastRepTimeRef.current) / 1000;
             repDurationsRef.current.push(dt);
-            // Slow rep (>5s) → extra fatigue
             if (dt > 5) speedFatigue = 1.5;
             else if (dt > 3.5) speedFatigue = 0.8;
           }
           lastRepTimeRef.current = now;
 
-          // Form-based fatigue bump
           const formPenalty = result.errorClass !== "good_form"
             ? (result.injuryRisk === "high" ? 2.5 : result.injuryRisk === "medium" ? 1.5 : 1.0)
             : 0.4;
@@ -304,9 +336,7 @@ export default function WorkoutPage() {
 
           setReps(prev => {
             const next = prev + 1;
-            // Auto-complete set when target reached
             if (next >= targetReps) {
-              // Defer to avoid setState-in-setState weirdness
               setTimeout(() => finishSet(next), 0);
             }
             return next;
