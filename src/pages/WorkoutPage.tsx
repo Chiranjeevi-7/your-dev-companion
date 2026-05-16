@@ -478,6 +478,7 @@ export default function WorkoutPage() {
     lastPhase.current = "neutral";
     stablePhase.current = "neutral";
     phaseFrameCount.current = 0;
+    resetPushupTracking();
     repDurationsRef.current = [];
     lastRepTimeRef.current = 0;
 
