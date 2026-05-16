@@ -314,6 +314,73 @@ export default function WorkoutPage() {
       return;
     }
 
+    // ===== PUSH-UP: body-Y displacement rep detection (overrides angle logic) =====
+    if (exercise === "pushup") {
+      const side = pickWorkingSide(pose.landmarks);
+      const ls = pose.landmarks[11];
+      const rs = pose.landmarks[12];
+      const lh = pose.landmarks[23];
+      const rh = pose.landmarks[24];
+      // Use the more visible shoulder; blend hip motion for stability
+      const shoulderY = side === "left" ? ls?.y : rs?.y;
+      const hipY = side === "left" ? lh?.y : rh?.y;
+      if (shoulderY == null || hipY == null) return;
+      const bodyY = shoulderY * 0.7 + hipY * 0.3;
+
+      // Initialize/refresh baseline (the "up" position = smallest y on screen)
+      if (pushupBaselineYRef.current === null) {
+        pushupBaselineYRef.current = bodyY;
+      } else if (pushupStateRef.current === "up") {
+        // Track minimum y (highest body position) when up, with slow drift to adapt
+        pushupBaselineYRef.current = Math.min(pushupBaselineYRef.current, bodyY);
+        pushupBaselineYRef.current = pushupBaselineYRef.current * 0.97 + bodyY * 0.03;
+      }
+      const baseline = pushupBaselineYRef.current;
+      const delta = bodyY - baseline; // >0 means body has dropped (down phase)
+
+      // Lightweight elbow corroboration (lenient — doesn't block detection alone)
+      const elbow = side === "left" ? smoothAngles.leftElbow : smoothAngles.rightElbow;
+
+      let observed: "up" | "down" = pushupStateRef.current;
+      if (delta >= PUSHUP_DOWN_DELTA && elbow < 150) observed = "down";
+      else if (delta <= PUSHUP_UP_TOLERANCE && elbow > 140) observed = "up";
+
+      if (observed !== pushupStateRef.current) {
+        pushupStableFramesRef.current++;
+        if (pushupStableFramesRef.current >= PUSHUP_STABLE_FRAMES) {
+          const prevState = pushupStateRef.current;
+          pushupStateRef.current = observed;
+          pushupStableFramesRef.current = 0;
+
+          // Count rep only on DOWN → UP completion
+          if (prevState === "down" && observed === "up") {
+            const now = performance.now();
+            if (now - lastRepCountedAtRef.current >= PUSHUP_COOLDOWN_MS) {
+              lastRepCountedAtRef.current = now;
+              let speedFatigue = 0;
+              if (lastRepTimeRef.current > 0) {
+                const dt = (now - lastRepTimeRef.current) / 1000;
+                repDurationsRef.current.push(dt);
+                if (dt > 5) speedFatigue = 1.5;
+                else if (dt > 3.5) speedFatigue = 0.8;
+              }
+              lastRepTimeRef.current = now;
+              const formPenalty = result.errorClass !== "good_form" ? 1.2 : 0.4;
+              setFatigue(f => Math.min(100, f + formPenalty + speedFatigue));
+              setReps(prev => {
+                const next = prev + 1;
+                if (next >= targetReps) setTimeout(() => finishSet(next), 0);
+                return next;
+              });
+            }
+          }
+        }
+      } else {
+        pushupStableFramesRef.current = 0;
+      }
+      return; // skip generic angle-based phase logic for push-ups
+    }
+
     // Auto rep counting with stability filter + cooldown lock
     const phase = detectRepPhase(exercise, smoothAngles, pose.landmarks);
     if (phase !== "neutral") {
