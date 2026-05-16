@@ -443,6 +443,7 @@ export default function WorkoutPage() {
     lastPhase.current = "neutral";
     stablePhase.current = "neutral";
     phaseFrameCount.current = 0;
+    resetPushupTracking();
     setMlResult(null);
     const e = EXERCISES[ex];
     setTargetReps(e.defaultReps || 12);
