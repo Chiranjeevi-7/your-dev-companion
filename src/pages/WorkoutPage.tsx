@@ -70,6 +70,21 @@ export default function WorkoutPage() {
   const REP_COOLDOWN_MS = 500;
   const STABLE_FRAMES = 4; // require 4 consecutive matching phase frames
 
+  // ---- Push-up body-Y rep detection (presentation-stable) ----
+  const pushupBaselineYRef = useRef<number | null>(null); // tracks "up" position shoulder Y
+  const pushupStateRef = useRef<"up" | "down">("up");
+  const pushupStableFramesRef = useRef(0);
+  const PUSHUP_DOWN_DELTA = 0.06;    // shoulders must drop ≥6% of frame height
+  const PUSHUP_UP_TOLERANCE = 0.025; // back within 2.5% of baseline
+  const PUSHUP_STABLE_FRAMES = 3;
+  const PUSHUP_COOLDOWN_MS = 600;
+
+  const resetPushupTracking = () => {
+    pushupBaselineYRef.current = null;
+    pushupStateRef.current = "up";
+    pushupStableFramesRef.current = 0;
+  };
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
