@@ -68,7 +68,7 @@ export default function Auth() {
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-primary via-info to-accent" />
 
         <h1 className="font-display text-[2.8rem] leading-none tracking-[3px] bg-gradient-to-br from-primary to-info bg-clip-text text-transparent mb-1">
-          FitAI Pro
+          FitSense
         </h1>
         <p className="text-muted-foreground text-sm mb-9">
           Your intelligent fitness companion powered by AI
