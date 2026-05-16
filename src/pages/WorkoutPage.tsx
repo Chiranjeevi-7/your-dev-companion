@@ -3,7 +3,7 @@ import { EXERCISES, TIMED_EXERCISES } from "@/lib/exercises";
 import { useProfile } from "@/hooks/useProfile";
 import { useAddWorkoutLog } from "@/hooks/useWorkoutLogs";
 import { usePoseDetection, getJointAngles } from "@/hooks/usePoseDetection";
-import { analyzeForm, detectRepPhase, detectPlankHold, detectMovementType, isMovementMatchingExercise } from "@/lib/formAnalysis";
+import { analyzeForm, detectRepPhase, detectPlankHold, detectMovementType, isMovementMatchingExercise, pickWorkingSide } from "@/lib/formAnalysis";
 import { mlAnalyzer, MLFormResult } from "@/lib/mlFormAnalyzer";
 import { useVoiceFeedback } from "@/hooks/useVoiceFeedback";
 import { usePersonLock } from "@/hooks/usePersonLock";
