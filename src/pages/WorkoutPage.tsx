@@ -155,6 +155,7 @@ export default function WorkoutPage() {
     lastPhase.current = "neutral";
     stablePhase.current = "neutral";
     phaseFrameCount.current = 0;
+    resetPushupTracking();
     repDurationsRef.current = [];
 
     // Bump fatigue per set finish (5–15 based on form/speed)
