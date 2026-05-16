@@ -10,7 +10,7 @@ export default function Index() {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="font-display text-5xl tracking-[3px] bg-gradient-to-br from-primary to-info bg-clip-text text-transparent mb-4">
-            FitAI Pro
+            FitSense
           </div>
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
         </div>

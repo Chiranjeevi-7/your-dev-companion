@@ -26,7 +26,7 @@ export default function AppLayout() {
     <div className="flex flex-col min-h-screen">
       {/* Nav */}
       <nav className="sticky top-0 z-50 h-[60px] flex items-center justify-between px-6 bg-card border-b border-border">
-        <div className="font-display text-3xl tracking-[2px] text-primary">FitAI</div>
+        <div className="font-display text-3xl tracking-[2px] text-primary">FitSense</div>
         <div className="flex gap-1">
           {NAV_ITEMS.map((item) => (
             <button
